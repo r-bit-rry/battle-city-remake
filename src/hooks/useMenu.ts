@@ -1,4 +1,4 @@
-import { GameSettings } from '@/engine'
+import { GameSettings, TypeAiLevel } from '@/engine'
 import { TypePlayerLevel } from '@/types'
 import { useCallback, useEffect, useState } from 'react'
 import { useGame } from './useGame'
@@ -16,12 +16,22 @@ type MenuState =
 	| 'lobby'
 	| 'find lobby'
 
+const AI_LEVELS: TypeAiLevel[] = ['beginner', 'intermediate', 'pro', 'elite']
+
+const AI_LEVEL_LABELS: Record<TypeAiLevel, string> = {
+	beginner: '0',
+	intermediate: '1',
+	pro: '2',
+	elite: '3',
+}
+
 const menuStates = (
 	gameSettings: GameSettings,
 	lobbyId: string,
-	searchingLobbyId: string
+	searchingLobbyId: string,
+	aiLevel: TypeAiLevel
 ) => ({
-	main: ['1 PLAYER', '2 PLAYERS', 'MULTIPLAYER', 'SETTINGS'],
+	main: ['1 PLAYER', '1 PLAYER + AI', '2 PLAYERS', 'MULTIPLAYER', 'SETTINGS'],
 	'1 player': ['PLAY', 'CONSTRUCTION', 'BACK'],
 	'2 players': ['PLAY', 'CONSTRUCTION', 'BACK'],
 	multiplayer: ['CREATE LOBBY', 'FIND LOBBY', 'BACK'],
@@ -33,6 +43,8 @@ const menuStates = (
 		`SOUND (${gameSettings.soundPack})`,
 		`FRIENDLY FIRE (${gameSettings.friendlyFire ? 'y' : 'n'})`,
 		`PLAYER LEVEL (${gameSettings.playerLevel})`,
+		`AI LEVEL (${AI_LEVEL_LABELS[aiLevel]})`,
+		`AUTO RESPAWN (${gameSettings.survivorRespawn ? 'y' : 'n'})`,
 		`HARDCORE (${gameSettings.hardcore ? 'y' : 'n'})`,
 		`BACK`,
 	],
@@ -44,7 +56,7 @@ export const useMenu = () => {
 
 	const [isEditing, setEditing] = useState(false)
 	const [choose, setChoose] = useState(1)
-	const [range, setRange] = useState(4)
+	const [range, setRange] = useState(5)
 	const [state, setState] = useState<MenuState>('main')
 
 	// Game Settings
@@ -52,13 +64,15 @@ export const useMenu = () => {
 	const [hardcore, setHardcore] = useState(false)
 	const [friendlyFire, setFriendlyFire] = useState(false)
 	const [playerLevel, setPlayerLevel] = useState<TypePlayerLevel>(0)
+	const [aiLevel, setAiLevel] = useState<TypeAiLevel>('beginner')
+	const [survivorRespawn, setSurvivorRespawn] = useState(true)
 
 	// Lobbying
 	const [lobbyId, setLobbyId] = useState('1000')
 	const [searchingLobbyId, setSearchingLobbyId] = useState('')
 
 	const getMenuStates = () =>
-		menuStates(gameSettings, lobbyId, searchingLobbyId)
+		menuStates(gameSettings, lobbyId, searchingLobbyId, aiLevel)
 
 	const playMenuSound = useCallback(() => {
 		const sound = new Audio(`/audio/${soundPack}/menu.ogg`)
@@ -76,6 +90,7 @@ export const useMenu = () => {
 		friendlyFire,
 		hardcore,
 		playerLevel,
+		survivorRespawn,
 		soundPack,
 	}
 
@@ -83,6 +98,7 @@ export const useMenu = () => {
 		hardcore,
 		playerLevel,
 		friendlyFire,
+		survivorRespawn,
 		soundPack,
 	}
 
@@ -107,6 +123,18 @@ export const useMenu = () => {
 		[range, soundPack]
 	)
 
+	const cycleAiLevel = (action: '+' | '-') => {
+		setAiLevel((prev) => {
+			const index = AI_LEVELS.indexOf(prev)
+			const next =
+				action === '+'
+					? (index + 1) % AI_LEVELS.length
+					: (index - 1 + AI_LEVELS.length) % AI_LEVELS.length
+			return AI_LEVELS[next]
+		})
+		playChooseSound()
+	}
+
 	useEffect(() => {
 		const chooseHandler = (code: string) => {
 			if (isEditing) return
@@ -127,12 +155,15 @@ export const useMenu = () => {
 								updateState('1 player')
 								break
 							case 2:
-								updateState('2 players')
+								startLocalGame(2, settings, undefined, aiLevel)
 								break
 							case 3:
-								updateState('multiplayer')
+								updateState('2 players')
 								break
 							case 4:
+								updateState('multiplayer')
+								break
+							case 5:
 								updateState('settings')
 								break
 						}
@@ -181,9 +212,15 @@ export const useMenu = () => {
 								)
 								break
 							case 4:
-								setHardcore((prev) => !prev)
+								cycleAiLevel('+')
 								break
 							case 5:
+								setSurvivorRespawn((prev) => !prev)
+								break
+							case 6:
+								setHardcore((prev) => !prev)
+								break
+							case 7:
 								updateState('main')
 								break
 						}
@@ -283,7 +320,7 @@ export const useMenu = () => {
 		return () => {
 			document.removeEventListener('keypress', chooseHandlerListener)
 		}
-	}, [state, choose, soundPack, isEditing])
+	}, [state, choose, soundPack, isEditing, aiLevel, survivorRespawn])
 
 	return {
 		state: getMenuStates()[state],

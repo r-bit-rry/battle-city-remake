@@ -1,5 +1,5 @@
-import { Game, Player } from '../instances'
-import { TypeObject, TypeTank } from '../types'
+import { Game, Player, Tank } from '../instances'
+import { BusyCoordinates, TypeObject, TypeTank } from '../types'
 
 export const isEnemy = (type: TypeTank | TypeObject) =>
 	type === 'NORMAL' || type === 'SPEEDY' || type === 'HEAVY' ? true : false
@@ -17,6 +17,33 @@ export const isImpassibleGameObject = (type: TypeTank | TypeObject) =>
 export const isTank = (type: TypeTank | TypeObject) =>
 	isEnemy(type) || isPlayer(type) ? true : false
 
+// 15x15 tank box vs blocks (8x8) and other tanks (15x15).
+// Touching boxes count as blocked, matching Tank.move() semantics.
+export const isTankBlockedAt = (
+	tank: Tank,
+	x: number,
+	y: number,
+	busyCoordinates: BusyCoordinates[]
+) => {
+	if (x < 7 || x > 200 || y < 7 || y > 200) return true
+
+	for (let i = 0; i < busyCoordinates.length; i++) {
+		const busy = busyCoordinates[i]
+		if (busy.id === tank.id) continue
+		if (!isTank(busy.type) && !isImpassibleGameObject(busy.type)) continue
+
+		const minX = isTank(busy.type) ? busy.coordinateX - 7 : busy.coordinateX
+		const minY = isTank(busy.type) ? busy.coordinateY - 7 : busy.coordinateY
+		const maxX = busy.coordinateX + 7
+		const maxY = busy.coordinateY + 7
+
+		if (x - 7 <= maxX && minX <= x + 7 && y - 7 <= maxY && minY <= y + 7)
+			return true
+	}
+
+	return false
+}
+
 export const isPlayerDead = (p: Player) =>
 	p.lives && !p.deathCooldown ? false : true
 
@@ -29,10 +56,12 @@ export const isGameOver = (game: Game) => {
 }
 
 export const isPlayerCanShoot = (p: Player) =>
-	p.deathCooldown || !p.availableBullets || p.spawnAnimation ? false : true
+	p.deathCooldown || !p.availableBullets || p.spawnAnimation || !p.lives
+		? false
+		: true
 
 export const isPlayerCanMove = (p: Player) =>
-	p.deathCooldown || p.spawnAnimation ? false : true
+	p.deathCooldown || p.spawnAnimation || !p.lives ? false : true
 
 export const isBulletHitObject = (
 	busyX: number,

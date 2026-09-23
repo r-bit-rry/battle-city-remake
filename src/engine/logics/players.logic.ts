@@ -21,17 +21,17 @@ const playerFrameLogic = (game: Game, num: 1 | 2) => {
 
 	if (helmet !== 0) p.helmet--
 
-	if (deathCooldown === 1) p.respawn()
+	if (deathCooldown === 1 && p.lives > 0) p.respawn()
 
 	if (deathCooldown > 0) p.deathCooldown -= 1
 
 	if (fire) {
 		controller.fire = false
 
-		if (!isPlayerCanShoot(p)) return
-
-		sounds.shoot = true
-		p.shoot(bullets)
+		if (isPlayerCanShoot(p)) {
+			sounds.shoot = true
+			p.shoot(bullets)
+		}
 	}
 
 	if (move) {
@@ -40,13 +40,13 @@ const playerFrameLogic = (game: Game, num: 1 | 2) => {
 			return
 		}
 
+		const busyCoordinates = [...enemies, ...objects]
+		if (pAnother && !isPlayerDead(pAnother)) busyCoordinates.push(pAnother)
+
 		if (move !== direction) {
 			p.direction = move
+			p.alignToGrid(busyCoordinates)
 		} else {
-			const busyCoordinates = [...enemies, ...objects]
-			if (pAnother && !isPlayerDead(pAnother))
-				busyCoordinates.push(pAnother)
-
 			p.move(busyCoordinates)
 		}
 

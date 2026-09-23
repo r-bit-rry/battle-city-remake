@@ -1,49 +1,76 @@
 import { Game } from '@/engine'
 import { TypeButton, TypeMoveButton } from '@/types'
-import { useEffect, useState } from 'react'
+import { MutableRefObject, useCallback, useEffect, useRef } from 'react'
 import { useFrameLoop } from './useFrameLoop'
 import { useMobile } from './useMobile'
 import { gameApi } from '@/api'
 
 const movementMap: Record<string, TypeMoveButton> = {
 	KeyW: 'TOP',
+	ArrowUp: 'TOP',
 	KeyD: 'RIGHT',
+	ArrowRight: 'RIGHT',
 	KeyA: 'LEFT',
+	ArrowLeft: 'LEFT',
 	KeyS: 'BOTTOM',
+	ArrowDown: 'BOTTOM',
 }
-let moveTimer: NodeJS.Timeout
+
+const pushHeld = (
+	held: MutableRefObject<TypeMoveButton[]>,
+	direction: TypeMoveButton
+) => {
+	if (held.current.includes(direction)) return
+	held.current.push(direction)
+}
+
+const removeHeld = (
+	held: MutableRefObject<TypeMoveButton[]>,
+	direction: TypeMoveButton
+) => {
+	held.current = held.current.filter((d) => d !== direction)
+}
+
+const activeDirection = (held: MutableRefObject<TypeMoveButton[]>) =>
+	held.current[held.current.length - 1] ?? null
 
 export const useOnlineControls = (game?: Game) => {
 	const isMobile = useMobile()
 
-	const [movement, setMovement] = useState<TypeMoveButton | null>(null)
+	const held = useRef<TypeMoveButton[]>([])
 
-	const moveMobileHandler = (button: TypeMoveButton) => {
-		moveTimer = setInterval(() => inputHandler(button), 10)
-	}
+	const inputHandler = useCallback(
+		(button: TypeButton | null) => {
+			if (!game || !button) return
 
-	const clearMoveMobileHandler = () => {
-		clearInterval(moveTimer)
-		setMovement(null)
-	}
-
-	const inputHandler = (button: TypeButton | null) => {
-		if (!game || !button) return
-
-		gameApi.input(button, game.id)
-	}
+			gameApi.input(button, game.id)
+		},
+		[game]
+	)
 
 	useFrameLoop(() => {
-		if (movement) inputHandler(movement)
+		const move = activeDirection(held)
+		if (move) inputHandler(move)
 	})
 
 	useEffect(() => {
 		if (!game) return
 
 		const moveHandler = (e: KeyboardEvent) => {
-			const val = movementMap[e.code]
-			if (['KeyW', 'KeyD', 'KeyA', 'KeyS'].includes(e.code))
-				setMovement(val)
+			const direction = movementMap[e.code]
+			if (!direction) return
+
+			e.preventDefault()
+			if (!e.repeat) pushHeld(held, direction)
+		}
+
+		const clearMovement = (e: KeyboardEvent) => {
+			const direction = movementMap[e.code]
+			if (direction) removeHeld(held, direction)
+		}
+
+		const clearAllMovement = () => {
+			held.current = []
 		}
 
 		const fireHandler = (e: KeyboardEvent) => {
@@ -51,12 +78,10 @@ export const useOnlineControls = (game?: Game) => {
 		}
 
 		const pauseHandler = (e: KeyboardEvent) => {
-			if (e.code === 'Space') inputHandler('PAUSE')
-		}
-
-		const clearMovement = (e: KeyboardEvent) => {
-			if (['KeyW', 'KeyD', 'KeyA', 'KeyS'].includes(e.code))
-				setMovement(null)
+			if (e.code === 'Space') {
+				e.preventDefault()
+				if (!e.repeat) inputHandler('PAUSE')
+			}
 		}
 
 		const mobileHandlers = [
@@ -75,71 +100,101 @@ export const useOnlineControls = (game?: Game) => {
 			{
 				id: 'top1',
 				event: 'touchstart',
-				handler: () => moveMobileHandler('TOP'),
+				handler: () => pushHeld(held, 'TOP'),
 			},
 			{
 				id: 'bottom1',
 				event: 'touchstart',
-				handler: () => moveMobileHandler('BOTTOM'),
+				handler: () => pushHeld(held, 'BOTTOM'),
 			},
 			{
 				id: 'left1',
 				event: 'touchstart',
-				handler: () => moveMobileHandler('LEFT'),
+				handler: () => pushHeld(held, 'LEFT'),
 			},
 			{
 				id: 'right1',
 				event: 'touchstart',
-				handler: () => moveMobileHandler('RIGHT'),
+				handler: () => pushHeld(held, 'RIGHT'),
 			},
 
 			{
 				id: 'top1',
 				event: 'touchend',
-				handler: () => clearMoveMobileHandler(),
+				handler: () => removeHeld(held, 'TOP'),
 			},
 			{
 				id: 'bottom1',
 				event: 'touchend',
-				handler: () => clearMoveMobileHandler(),
+				handler: () => removeHeld(held, 'BOTTOM'),
 			},
 			{
 				id: 'left1',
 				event: 'touchend',
-				handler: () => clearMoveMobileHandler(),
+				handler: () => removeHeld(held, 'LEFT'),
 			},
 			{
 				id: 'right1',
 				event: 'touchend',
-				handler: () => clearMoveMobileHandler(),
+				handler: () => removeHeld(held, 'RIGHT'),
+			},
+
+			{
+				id: 'top1',
+				event: 'touchcancel',
+				handler: () => removeHeld(held, 'TOP'),
+			},
+			{
+				id: 'bottom1',
+				event: 'touchcancel',
+				handler: () => removeHeld(held, 'BOTTOM'),
+			},
+			{
+				id: 'left1',
+				event: 'touchcancel',
+				handler: () => removeHeld(held, 'LEFT'),
+			},
+			{
+				id: 'right1',
+				event: 'touchcancel',
+				handler: () => removeHeld(held, 'RIGHT'),
 			},
 		]
 
 		if (isMobile) {
+			const timer = setInterval(() => {
+				const move = activeDirection(held)
+				if (move) inputHandler(move)
+			}, 10)
+
 			mobileHandlers.forEach(({ id, event, handler }) => {
 				document.getElementById(id)?.addEventListener(event, handler)
 			})
-			return () => {
-				if (isMobile) {
-					mobileHandlers.forEach(({ id, event, handler }) => {
-						document
-							.getElementById(id)
-							?.removeEventListener(event, handler)
-					})
-				}
-			}
-		} else {
-			document.addEventListener('keypress', moveHandler)
-			document.addEventListener('keyup', clearMovement)
-			document.addEventListener('keypress', fireHandler)
-			document.addEventListener('keypress', pauseHandler)
 
 			return () => {
-				document.removeEventListener('keypress', moveHandler)
-				document.removeEventListener('keyup', clearMovement)
-				document.removeEventListener('keypress', fireHandler)
-				document.removeEventListener('keypress', pauseHandler)
+				clearInterval(timer)
+				clearAllMovement()
+				mobileHandlers.forEach(({ id, event, handler }) => {
+					document
+						.getElementById(id)
+						?.removeEventListener(event, handler)
+				})
 			}
 		}
-	}, [game, isMobile])
+
+		document.addEventListener('keydown', moveHandler)
+		document.addEventListener('keyup', clearMovement)
+		document.addEventListener('keydown', fireHandler)
+		document.addEventListener('keydown', pauseHandler)
+		window.addEventListener('blur', clearAllMovement)
+
+		return () => {
+			clearAllMovement()
+			document.removeEventListener('keydown', moveHandler)
+			document.removeEventListener('keyup', clearMovement)
+			document.removeEventListener('keydown', fireHandler)
+			document.removeEventListener('keydown', pauseHandler)
+			window.removeEventListener('blur', clearAllMovement)
+		}
+	}, [game, isMobile, inputHandler])
 }

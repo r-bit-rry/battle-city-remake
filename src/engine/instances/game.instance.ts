@@ -3,6 +3,7 @@ import {
 	EditorObject,
 	EnemyList,
 	GameSettings,
+	TypeAiLevel,
 	TypeEnemySpawnPosition,
 	TypeSound,
 } from '../types'
@@ -64,16 +65,19 @@ export class Game {
 	// Settings
 	editor?: EditorObject[]
 	settings: GameSettings
+	aiLevel?: TypeAiLevel
 
 	constructor(
 		id: string,
 		p1: string,
 		p2: string | null,
 		settings: GameSettings,
-		editor?: EditorObject[]
+		editor?: EditorObject[],
+		aiLevel?: TypeAiLevel
 	) {
 		this.id = id
 		this.settings = settings
+		this.aiLevel = aiLevel
 
 		this.p1 = new Player(
 			'left',
@@ -153,6 +157,14 @@ export class Game {
 		this.enemySpawnPosition = 'middle'
 		this.timerBonus = 0
 		this.sounds.level_start = true
+
+		const p1HasLives = this.p1.lives > 0
+		const p2HasLives = this.p2 ? this.p2.lives > 0 : false
+
+		if (this.settings.survivorRespawn) {
+			if (!p1HasLives && p2HasLives) this.p1.lives = 1
+			if (this.p2 && !p2HasLives && p1HasLives) this.p2.lives = 1
+		}
 
 		this.p1.reset()
 		if (this.p2) this.p2.reset()

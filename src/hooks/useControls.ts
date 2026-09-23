@@ -1,72 +1,104 @@
 import { Game } from '@/engine'
 import { TypeButton, TypeMoveButton } from '@/types'
-import { useEffect, useState } from 'react'
+import { MutableRefObject, useCallback, useEffect, useRef } from 'react'
 import { useFrameLoop } from './useFrameLoop'
 import { useMobile } from './useMobile'
 import { TypeDirection } from '@/engine'
 
-const movementMap: Record<string, TypeMoveButton> = {
+const p1MovementMap: Record<string, TypeMoveButton> = {
 	KeyW: 'TOP',
+	ArrowUp: 'TOP',
 	KeyD: 'RIGHT',
+	ArrowRight: 'RIGHT',
 	KeyA: 'LEFT',
+	ArrowLeft: 'LEFT',
 	KeyS: 'BOTTOM',
+	ArrowDown: 'BOTTOM',
+}
 
+const p2MovementMap: Record<string, TypeMoveButton> = {
 	KeyU: 'TOP',
 	KeyK: 'RIGHT',
 	KeyH: 'LEFT',
 	KeyJ: 'BOTTOM',
 }
 
+const pushHeld = (
+	held: MutableRefObject<TypeMoveButton[]>,
+	direction: TypeMoveButton
+) => {
+	if (held.current.includes(direction)) return
+	held.current.push(direction)
+}
+
+const removeHeld = (
+	held: MutableRefObject<TypeMoveButton[]>,
+	direction: TypeMoveButton
+) => {
+	held.current = held.current.filter((d) => d !== direction)
+}
+
+const activeDirection = (held: MutableRefObject<TypeMoveButton[]>) =>
+	held.current[held.current.length - 1] ?? null
+
 export const useControls = (game?: Game) => {
 	const isMobile = useMobile()
 
-	const [movement1, setMovement1] = useState<TypeMoveButton | null>(null)
-	const [movement2, setMovement2] = useState<TypeMoveButton | null>(null)
+	const held1 = useRef<TypeMoveButton[]>([])
+	const held2 = useRef<TypeMoveButton[]>([])
 
-	let move1Timer: NodeJS.Timeout
-	let move2Timer: NodeJS.Timeout
+	const inputHandler = useCallback(
+		(button: TypeButton | null, p: 1 | 2) => {
+			if (!game || !button) return
 
-	const moveMobileHandler = (p: 1 | 2, button: TypeMoveButton) => {
-		if (p === 1) move1Timer = setInterval(() => inputHandler(button, 1), 10)
-		else move2Timer = setInterval(() => inputHandler(button, 2), 10)
-	}
+			const controls = p === 1 ? game.p1Controls : game.p2Controls
 
-	const clearMoveMobileHandler = (p: 1 | 2) => {
-		clearInterval(p === 1 ? move1Timer : move2Timer)
-
-		p === 1 ? setMovement1(null) : setMovement2(null)
-	}
-
-	const inputHandler = (button: TypeButton | null, p: 1 | 2) => {
-		if (!game || !button) return
-
-		const controls = p === 1 ? game.p1Controls : game.p2Controls
-
-		if (
-			button === 'TOP' ||
-			button === 'RIGHT' ||
-			button === 'LEFT' ||
-			button === 'BOTTOM'
-		) {
-			controls.move = button as TypeDirection
-		} else if (button === 'FIRE') controls.fire = true
-		else if (button === 'PAUSE') controls.pause = true
-	}
+			if (
+				button === 'TOP' ||
+				button === 'RIGHT' ||
+				button === 'LEFT' ||
+				button === 'BOTTOM'
+			) {
+				controls.move = button as TypeDirection
+			} else if (button === 'FIRE') controls.fire = true
+			else if (button === 'PAUSE') controls.pause = true
+		},
+		[game]
+	)
 
 	useFrameLoop(() => {
-		if (movement1) inputHandler(movement1, 1)
-		if (movement2) inputHandler(movement2, 2)
+		const move1 = activeDirection(held1)
+		const move2 = activeDirection(held2)
+
+		if (move1) inputHandler(move1, 1)
+		if (move2) inputHandler(move2, 2)
 	})
 
 	useEffect(() => {
 		if (!game) return
 
 		const moveHandler = (e: KeyboardEvent) => {
-			const val = movementMap[e.code]
-			if (['KeyW', 'KeyD', 'KeyA', 'KeyS'].includes(e.code))
-				setMovement1(val)
-			else if (['KeyU', 'KeyK', 'KeyH', 'KeyJ'].includes(e.code))
-				setMovement2(val)
+			const p1Direction = p1MovementMap[e.code]
+			const p2Direction = p2MovementMap[e.code]
+
+			if (p1Direction) {
+				e.preventDefault()
+				if (!e.repeat) pushHeld(held1, p1Direction)
+			} else if (p2Direction) {
+				e.preventDefault()
+				if (!e.repeat) pushHeld(held2, p2Direction)
+			}
+		}
+
+		const clearMovement = (e: KeyboardEvent) => {
+			if (p1MovementMap[e.code]) removeHeld(held1, p1MovementMap[e.code])
+			else if (p2MovementMap[e.code])
+				removeHeld(held2, p2MovementMap[e.code])
+		}
+
+		const clearAllMovement = () => {
+			held1.current = []
+			held2.current = []
 		}
 
 		const fireHandler = (e: KeyboardEvent) => {
@@ -75,14 +107,10 @@ export const useControls = (game?: Game) => {
 		}
 
 		const pauseHandler = (e: KeyboardEvent) => {
-			if (e.code === 'Space') inputHandler('PAUSE', 1)
-		}
-
-		const clearMovement = (e: KeyboardEvent) => {
-			if (['KeyW', 'KeyD', 'KeyA', 'KeyS'].includes(e.code))
-				setMovement1(null)
-			else if (['KeyU', 'KeyK', 'KeyH', 'KeyJ'].includes(e.code))
-				setMovement2(null)
+			if (e.code === 'Space') {
+				e.preventDefault()
+				if (!e.repeat) inputHandler('PAUSE', 1)
+			}
 		}
 
 		const mobileHandlers = [
@@ -106,113 +134,170 @@ export const useControls = (game?: Game) => {
 			{
 				id: 'top1',
 				event: 'touchstart',
-				handler: () => moveMobileHandler(1, 'TOP'),
+				handler: () => pushHeld(held1, 'TOP'),
 			},
 			{
 				id: 'bottom1',
 				event: 'touchstart',
-				handler: () => moveMobileHandler(1, 'BOTTOM'),
+				handler: () => pushHeld(held1, 'BOTTOM'),
 			},
 			{
 				id: 'left1',
 				event: 'touchstart',
-				handler: () => moveMobileHandler(1, 'LEFT'),
+				handler: () => pushHeld(held1, 'LEFT'),
 			},
 			{
 				id: 'right1',
 				event: 'touchstart',
-				handler: () => moveMobileHandler(1, 'RIGHT'),
+				handler: () => pushHeld(held1, 'RIGHT'),
 			},
 
 			{
 				id: 'top2',
 				event: 'touchstart',
-				handler: () => moveMobileHandler(2, 'TOP'),
+				handler: () => pushHeld(held2, 'TOP'),
 			},
 			{
 				id: 'bottom2',
 				event: 'touchstart',
-				handler: () => moveMobileHandler(2, 'BOTTOM'),
+				handler: () => pushHeld(held2, 'BOTTOM'),
 			},
 			{
 				id: 'left2',
 				event: 'touchstart',
-				handler: () => moveMobileHandler(2, 'LEFT'),
+				handler: () => pushHeld(held2, 'LEFT'),
 			},
 			{
 				id: 'right2',
 				event: 'touchstart',
-				handler: () => moveMobileHandler(2, 'RIGHT'),
+				handler: () => pushHeld(held2, 'RIGHT'),
 			},
 
 			{
 				id: 'top1',
 				event: 'touchend',
-				handler: () => clearMoveMobileHandler(1),
+				handler: () => removeHeld(held1, 'TOP'),
 			},
 			{
 				id: 'bottom1',
 				event: 'touchend',
-				handler: () => clearMoveMobileHandler(1),
+				handler: () => removeHeld(held1, 'BOTTOM'),
 			},
 			{
 				id: 'left1',
 				event: 'touchend',
-				handler: () => clearMoveMobileHandler(1),
+				handler: () => removeHeld(held1, 'LEFT'),
 			},
 			{
 				id: 'right1',
 				event: 'touchend',
-				handler: () => clearMoveMobileHandler(1),
+				handler: () => removeHeld(held1, 'RIGHT'),
 			},
 
 			{
 				id: 'top2',
 				event: 'touchend',
-				handler: () => clearMoveMobileHandler(2),
+				handler: () => removeHeld(held2, 'TOP'),
 			},
 			{
 				id: 'bottom2',
 				event: 'touchend',
-				handler: () => clearMoveMobileHandler(2),
+				handler: () => removeHeld(held2, 'BOTTOM'),
 			},
 			{
 				id: 'left2',
 				event: 'touchend',
-				handler: () => clearMoveMobileHandler(2),
+				handler: () => removeHeld(held2, 'LEFT'),
 			},
 			{
 				id: 'right2',
 				event: 'touchend',
-				handler: () => clearMoveMobileHandler(2),
+				handler: () => removeHeld(held2, 'RIGHT'),
+			},
+
+			{
+				id: 'top1',
+				event: 'touchcancel',
+				handler: () => removeHeld(held1, 'TOP'),
+			},
+			{
+				id: 'bottom1',
+				event: 'touchcancel',
+				handler: () => removeHeld(held1, 'BOTTOM'),
+			},
+			{
+				id: 'left1',
+				event: 'touchcancel',
+				handler: () => removeHeld(held1, 'LEFT'),
+			},
+			{
+				id: 'right1',
+				event: 'touchcancel',
+				handler: () => removeHeld(held1, 'RIGHT'),
+			},
+
+			{
+				id: 'top2',
+				event: 'touchcancel',
+				handler: () => removeHeld(held2, 'TOP'),
+			},
+			{
+				id: 'bottom2',
+				event: 'touchcancel',
+				handler: () => removeHeld(held2, 'BOTTOM'),
+			},
+			{
+				id: 'left2',
+				event: 'touchcancel',
+				handler: () => removeHeld(held2, 'LEFT'),
+			},
+			{
+				id: 'right2',
+				event: 'touchcancel',
+				handler: () => removeHeld(held2, 'RIGHT'),
 			},
 		]
 
 		if (isMobile) {
+			const timers = [
+				setInterval(() => {
+					const move = activeDirection(held1)
+					if (move) inputHandler(move, 1)
+				}, 10),
+				setInterval(() => {
+					const move = activeDirection(held2)
+					if (move) inputHandler(move, 2)
+				}, 10),
+			]
+
 			mobileHandlers.forEach(({ id, event, handler }) => {
 				document.getElementById(id)?.addEventListener(event, handler)
 			})
-			return () => {
-				if (isMobile) {
-					mobileHandlers.forEach(({ id, event, handler }) => {
-						document
-							.getElementById(id)
-							?.removeEventListener(event, handler)
-					})
-				}
-			}
-		} else {
-			document.addEventListener('keypress', moveHandler)
-			document.addEventListener('keyup', clearMovement)
-			document.addEventListener('keypress', fireHandler)
-			document.addEventListener('keypress', pauseHandler)
 
 			return () => {
-				document.removeEventListener('keypress', moveHandler)
-				document.removeEventListener('keyup', clearMovement)
-				document.removeEventListener('keypress', fireHandler)
-				document.removeEventListener('keypress', pauseHandler)
+				timers.forEach(clearInterval)
+				clearAllMovement()
+				mobileHandlers.forEach(({ id, event, handler }) => {
+					document
+						.getElementById(id)
+						?.removeEventListener(event, handler)
+				})
 			}
 		}
-	}, [game, isMobile])
+
+		document.addEventListener('keydown', moveHandler)
+		document.addEventListener('keyup', clearMovement)
+		document.addEventListener('keydown', fireHandler)
+		document.addEventListener('keydown', pauseHandler)
+		window.addEventListener('blur', clearAllMovement)
+
+		return () => {
+			clearAllMovement()
+			document.removeEventListener('keydown', moveHandler)
+			document.removeEventListener('keyup', clearMovement)
+			document.removeEventListener('keydown', fireHandler)
+			document.removeEventListener('keydown', pauseHandler)
+			window.removeEventListener('blur', clearAllMovement)
+		}
+	}, [game, isMobile, inputHandler])
 }

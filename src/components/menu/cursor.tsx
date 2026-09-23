@@ -1,39 +1,22 @@
 import { tank_p1__lvl_0 } from '@/models'
 import { getDirectionDegrees } from '@/utils'
 import { RenderObject } from '../render-object'
-import { usePixel } from '@/hooks'
-
-const calculatePlayerYCoordinates = (choose: number) => {
-	switch (choose) {
-		case 1:
-			return 79
-		case 2:
-			return 69
-		case 3:
-			return 59
-		case 4:
-			return 48
-		default:
-			return 38
-	}
-}
 
 interface Props {
-	choose: number
+	top: number
+	pixel: number
 }
 
-export const Cursor = ({ choose }: Props) => {
-	const pixel = usePixel()
-
+export const Cursor = ({ top, pixel }: Props) => {
 	return (
 		<div
+			data-testid="menu-cursor"
 			style={{
-				rotate: getDirectionDegrees('RIGHT'),
-				left: `${(54 - 7) * pixel}px`,
-				bottom: `${
-					(calculatePlayerYCoordinates(choose) - 7) * pixel
-				}px`,
 				position: 'absolute',
+				left: `${(54 - 7) * pixel}px`,
+				top: `${top}px`,
+				translate: '0 -50%',
+				rotate: getDirectionDegrees('RIGHT'),
 				scale: '0.7',
 			}}
 		>

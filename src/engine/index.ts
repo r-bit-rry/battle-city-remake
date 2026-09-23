@@ -10,6 +10,7 @@ export {
 export type {
 	EditorObject,
 	GameSettings,
+	TypeAiLevel,
 	TypeDirection,
 	TypeSound,
 	TypeSimpleSound,

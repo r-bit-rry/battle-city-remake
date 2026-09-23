@@ -1,4 +1,10 @@
-import { EditorObject, Game, GameSettings, gameFrame } from '@/engine'
+import {
+	EditorObject,
+	Game,
+	GameSettings,
+	TypeAiLevel,
+	gameFrame,
+} from '@/engine'
 import { CreateGameObject } from '@/types'
 import {
 	Dispatch,
@@ -20,7 +26,8 @@ interface GameContextInterface {
 	startLocalGame: (
 		players: 1 | 2,
 		settings: GameSettings,
-		editor?: EditorObject[]
+		editor?: EditorObject[],
+		aiLevel?: TypeAiLevel
 	) => void
 	createLobby: (lobbyId: string, settings: GameSettings) => void
 	joinLobby: (lobbyId: string) => void
@@ -46,13 +53,19 @@ export const GameProvider = ({ children }: Props) => {
 	const [editor, setEditor] = useState<CreateGameObject[]>([])
 	const [isEdited, setEdited] = useState(false)
 
-	const startLocalGame = (players: 1 | 2, settings: GameSettings) => {
+	const startLocalGame = (
+		players: 1 | 2,
+		settings: GameSettings,
+		_editor?: EditorObject[],
+		aiLevel?: TypeAiLevel
+	) => {
 		const newGame = new Game(
 			'local',
 			'p1',
 			players === 2 ? 'p2' : null,
 			settings,
-			isEdited ? editor : undefined
+			isEdited ? editor : undefined,
+			aiLevel
 		)
 
 		setGame(newGame)

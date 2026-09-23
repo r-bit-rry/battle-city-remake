@@ -89,16 +89,17 @@ export const enemiesFrameLogic = (game: Game) => {
 
 			if (!nextMoves) continue
 
+			const busyCoordinates = [
+				...enemies.filter((e) => e.id !== id),
+				...objects,
+			]
+			if (!isPlayerDead(p1)) busyCoordinates.push(p1)
+			if (p2 && !isPlayerDead(p2)) busyCoordinates.push(p2)
+
 			if (nextMoves.direction !== direction) {
 				enemy.direction = nextMoves.direction
+				enemy.alignToGrid(busyCoordinates)
 			} else {
-				const busyCoordinates = [
-					...enemies.filter((e) => e.id !== id),
-					...objects,
-				]
-				if (!isPlayerDead(p1)) busyCoordinates.push(p1)
-				if (p2 && !isPlayerDead(p2)) busyCoordinates.push(p2)
-
 				enemy.move(busyCoordinates)
 			}
 			sounds.enemy_move = true

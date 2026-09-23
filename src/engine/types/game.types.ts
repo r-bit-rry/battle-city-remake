@@ -2,8 +2,11 @@ export interface GameSettings {
 	hardcore: boolean
 	playerLevel: 0 | 1 | 2 | 3
 	friendlyFire: boolean
+	survivorRespawn: boolean
 	soundPack: 'default' | 'mario'
 }
+
+export type TypeAiLevel = 'beginner' | 'intermediate' | 'pro' | 'elite'
 
 export type TypeSimpleSound =
 	| 'bang'

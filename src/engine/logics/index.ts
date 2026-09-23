@@ -1,4 +1,5 @@
 import { Game } from '../instances'
+import { aiFrameLogic } from './ai.logic'
 import { animationsFrameLogic } from './animations.logic'
 import { bonusesFrameLogic } from './bonuses.logic'
 import { bulletsFrameLogic } from './bullet.logic'
@@ -15,6 +16,7 @@ export const gameFrame = (game: Game) => {
 	game.frame++
 	if (!levelChangeAnimation) {
 		if (!gameOverAnimation) {
+			aiFrameLogic(game)
 			playersFrameLogic(game)
 		}
 		if (!isPaused) {

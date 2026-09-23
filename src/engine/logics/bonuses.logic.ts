@@ -14,7 +14,7 @@ export const bonusesFrameLogic = (game: Game) => {
 			continue
 		}
 		const p = bonus.isAnyPlayerTouched(p1, p2)
-		if (p) {
+		if (p && p.lives) {
 			sounds.bonus_pickup = true
 			switch (type) {
 				case 'STAR':

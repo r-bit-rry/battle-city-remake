@@ -11,6 +11,7 @@ import {
 	isEnemy,
 	isImpassibleGameObject,
 	isTank,
+	isTankBlockedAt,
 	random,
 } from '../utils'
 import { Coordinates } from './coordinates.instance'
@@ -219,5 +220,31 @@ export class Tank extends Coordinates {
 			this.stuckCount = 0
 			this.generateNextMoves()
 		}
+	}
+
+	// Snaps the axis perpendicular to the facing direction to the nearest free
+	// lane (coordinate % 8 === 0 or 7), so the 15px tank always fits 16px gaps.
+	alignToGrid(busyCoordinates: BusyCoordinates[]) {
+		const isVertical =
+			this.direction === 'TOP' || this.direction === 'BOTTOM'
+		const current = isVertical ? this.coordinateX : this.coordinateY
+		const base = Math.floor(current / 8) * 8
+
+		const candidates = [base, base + 7, base + 8].filter((candidate) => {
+			const x = isVertical ? candidate : this.coordinateX
+			const y = isVertical ? this.coordinateY : candidate
+			return !isTankBlockedAt(this, x, y, busyCoordinates)
+		})
+
+		if (!candidates.length) return
+
+		const target = candidates.reduce((a, b) =>
+			Math.abs(a - current) <= Math.abs(b - current) ? a : b
+		)
+
+		if (target === current) return
+
+		if (isVertical) this.coordinateX = target
+		else this.coordinateY = target
 	}
 }

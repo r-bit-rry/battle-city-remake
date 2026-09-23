@@ -7,7 +7,7 @@ interface SidebarProps {
 }
 
 export const Sidebar = (props: SidebarProps) => {
-	const { enemyList, p1, p2, level } = props.game
+	const { enemyList, p1, p2, level, aiLevel } = props.game
 
 	return (
 		<div className="sidebar">
@@ -33,7 +33,7 @@ export const Sidebar = (props: SidebarProps) => {
 			</div>
 			{p2 && (
 				<div className="p2_container">
-					<p className="sidebar_text">2P</p>
+					<p className="sidebar_text">{aiLevel ? 'AI' : '2P'}</p>
 					<div className="p_num_wrapper">
 						<div>
 							{player_icon.map((row, i) => (
