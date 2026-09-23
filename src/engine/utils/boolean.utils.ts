@@ -106,18 +106,7 @@ export const isBulletHitBullet = (
 	busyY: number,
 	x: number,
 	y: number
-) =>
-	((busyY - 1 === y + 1 ||
-		busyY - 1 === y - 1 ||
-		busyY + 1 === y + 1 ||
-		busyY + 1 === y - 1) &&
-		busyX >= x - 2 &&
-		busyX <= x + 2) ||
-	((busyX - 1 === x + 1 ||
-		busyX - 1 === x - 1 ||
-		busyX + 1 === x + 1 ||
-		busyX + 1 === x - 1) &&
-		busyY === y)
+) => Math.abs(busyX - x) <= 5 && Math.abs(busyY - y) <= 2
 
 export const isOneSpeedShooter = (shooter: TypeTank) =>
 	shooter === 'NORMAL' ||

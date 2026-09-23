@@ -20,6 +20,8 @@ Status: implemented, build + 29 automated tests green, manual QA pending
 6. **Round 4** — cursor X restored to the original fixed offset (only Y is measured from the
    selected row), `AUTO RESPAWN` rename, AI levels shown as `0..3` with a new `elite` profile,
    menu tests now mock layout rects and assert both axes.
+7. **Round 5** — bullet-vs-bullet collision fixed: point-blank opposing shots no longer fly
+   through each other; same-shooter bullets never cancel.
 
 ## Design decisions
 
@@ -39,6 +41,7 @@ Status: implemented, build + 29 automated tests green, manual QA pending
 | 12 | Cursor X stays at the **original fixed offset** (`(54-7) * pixel`); only Y is measured from the selected row's rect | The row-relative `left: 0` moved the tank over the text at breakpoints with a larger `margin-left`; X was never broken | Keep row-relative X; tune hardcoded Y values per breakpoint |
 | 13 | AI movement uses BFS over the **lane grid** (positions where both coords are lanes), not tile centers | Every graph node is a legal tank position, so waypoints map 1:1 to `move` directions and turns re-snap exactly | Greedy steering only (gets stuck behind walls); tile-center BFS (needs lane conversion) |
 | 14 | Difficulty constants chosen by a **seeded multi-seed sweep** (9 seeds × 3000 frames, solo vs 4 enemies) | Tuning by feel was misleading; sweeps showed e.g. beginner deaths 5/9 → 2/9 | Guess-and-check constants; single-seed measurements |
+| 15 | Bullet-bullet collision is an AABB (`abs(dx) <= 5`, `abs(dy) <= 2`), muzzle offset 9→8px, same-shooter pairs excluded | At the 15px minimum tank gap, opposing bullets spawned past each other and the old exact-offset check never matched; a wider window would also catch a tank's own consecutive bullets | Keep exact offsets and ignore the point-blank case; spawn bullets at the tank center |
 
 ## Implementation map
 
@@ -147,6 +150,8 @@ Test coverage highlights:
   pushing into it.
 - **Engine regressions** — lane snapping, corner catch off-lane/clear on-lane, survivor
   respawn on/off, dead players inert, AI soak across seeds.
+- **Bullet collisions** — point-blank opposing bullets cancel; same-shooter bullets never
+  cancel; crossing bullets cancel; distant bullets do not.
 
 Manual QA checklist: hold W + tap/release D (falls back, no stutter); arrows; Alt-Tab clears
 keys; turn into 16px gaps from any offset; shoot the brick in front; main-menu cursor on all 5

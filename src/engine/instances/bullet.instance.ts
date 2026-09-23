@@ -25,16 +25,16 @@ export class Bullet extends Coordinates {
 	) {
 		switch (direction) {
 			case 'TOP':
-				y += 9
+				y += 8
 				break
 			case 'BOTTOM':
-				y -= 9
+				y -= 8
 				break
 			case 'LEFT':
-				x -= 9
+				x -= 8
 				break
 			default:
-				x += 9
+				x += 8
 		}
 
 		super(x, y)

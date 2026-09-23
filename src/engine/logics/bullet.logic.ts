@@ -96,26 +96,29 @@ export const bulletsFrameLogic = (game: Game) => {
 
 					if (id !== shooterId) willHit = true
 				}
-				if (
-					type === 'BULLET' &&
-					id !== bullet.id &&
-					isBulletHitBullet(busyX, busyY, x, y)
-				) {
-					willHit = true
+				if (type === 'BULLET' && id !== bullet.id) {
 					const secondBullet = bullets.find((b) => b.id === id)
-					const tank = allTanks.find(
-						(t) => t.id === secondBullet?.shooterId
-					)
-					if (tank) {
-						if (tank.type !== 'LVL_0') {
-							tank.availableBullets++
-						} else {
-							if (tank.availableBullets === 0) {
+
+					if (
+						secondBullet &&
+						secondBullet.shooterId !== shooterId &&
+						isBulletHitBullet(busyX, busyY, x, y)
+					) {
+						willHit = true
+						const tank = allTanks.find(
+							(t) => t.id === secondBullet.shooterId
+						)
+						if (tank) {
+							if (tank.type !== 'LVL_0') {
 								tank.availableBullets++
+							} else {
+								if (tank.availableBullets === 0) {
+									tank.availableBullets++
+								}
 							}
 						}
+						mutationFilter(bullets, (b: Bullet) => b.id !== id)
 					}
-					mutationFilter(bullets, (b: Bullet) => b.id !== id)
 				}
 			}
 
