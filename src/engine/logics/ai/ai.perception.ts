@@ -114,6 +114,7 @@ export const buildSnapshot = (game: Game, memory: AiMemory): AiSnapshot => {
 			y: object.coordinateY,
 			destructible: object.type === 'BRICK',
 			blocksBullets: object.type !== 'WATER',
+			flag: object.type === 'FLAG',
 		}))
 
 	return {

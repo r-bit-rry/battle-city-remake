@@ -13,6 +13,8 @@ import { retreatLives } from './ai.profiles'
 const distance = (x1: number, y1: number, x2: number, y2: number) =>
 	Math.hypot(x1 - x2, y1 - y2)
 
+const BASE_DEFENSE_LINE_MULTIPLIER = 1.4
+
 const enemyById = (snapshot: AiSnapshot, id: string) =>
 	snapshot.enemies.find((enemy) => enemy.id === id)
 
@@ -69,11 +71,13 @@ const defendGoal = (
 	for (const threat of threats) {
 		const enemy = enemyById(snapshot, threat.enemyId)
 		if (!enemy) continue
-		if (
-			distance(enemy.x, enemy.y, FLAG_X, FLAG_Y) >
-			features.baseDangerRadius
-		)
-			continue
+		const distToBase = distance(enemy.x, enemy.y, FLAG_X, FLAG_Y)
+		const nearBase =
+			distToBase <= features.baseDangerRadius ||
+			(threat.hasLineToBase &&
+				distToBase <=
+					features.baseDangerRadius * BASE_DEFENSE_LINE_MULTIPLIER)
+		if (!nearBase) continue
 
 		let target = { x: enemy.x, y: enemy.y }
 		if (

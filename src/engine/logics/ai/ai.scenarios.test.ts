@@ -122,7 +122,7 @@ describe('AI ally scenarios', () => {
 		game.p2!.coordinateX = 40
 		game.p2!.coordinateY = 100
 		game.p2!.lives = 2
-		game.enemies = [makeEnemy(40, 140), makeEnemy(60, 130)]
+		game.enemies = [makeEnemy(40, 140), makeEnemy(60, 160)]
 
 		aiFrameLogic(game)
 

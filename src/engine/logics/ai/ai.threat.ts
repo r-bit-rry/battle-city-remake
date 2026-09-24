@@ -44,10 +44,16 @@ export const advance = (
 const typeWeight = (type: AiEnemySnapshot['type']) =>
 	type === 'SPEEDY' ? 1 : type === 'HEAVY' ? 0.6 : 0.5
 
-const obstacleAt = (snapshot: AiSnapshot, x: number, y: number) =>
+const obstacleAt = (
+	snapshot: AiSnapshot,
+	x: number,
+	y: number,
+	ignoreFlag = false
+) =>
 	snapshot.obstacles.find(
 		(object) =>
 			object.blocksBullets &&
+			!(ignoreFlag && object.flag) &&
 			x >= object.x - 2 &&
 			x <= object.x + 9 &&
 			y >= object.y - 2 &&
@@ -60,7 +66,7 @@ export const hasLineToBase = (snapshot: AiSnapshot, enemy: AiEnemySnapshot) => {
 		const t = i / steps
 		const x = enemy.x + (FLAG_X - enemy.x) * t
 		const y = enemy.y + (FLAG_Y - enemy.y) * t
-		if (obstacleAt(snapshot, x, y)) return false
+		if (obstacleAt(snapshot, x, y, true)) return false
 	}
 
 	return true

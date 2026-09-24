@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { Bullet, GameObject } from '../../instances'
+import { MapInstance } from '../../maps'
 import { buildSnapshot, createMemory } from './ai.perception'
 import {
 	buildDangerMap,
@@ -55,6 +56,31 @@ describe('computeThreats', () => {
 		]
 
 		expect(clear).toBe(true)
+		expect(computeThreats(snapshotOf(game))[0].hasLineToBase).toBe(false)
+	})
+
+	it('reaches the flag past the real base structure but not past a wall', () => {
+		const game = makeAiGame()
+		game.enemies = [makeEnemy(103, 120)]
+		game.objects = MapInstance().filter((object) => object.type === 'FLAG')
+		const snapshot = snapshotOf(game)
+		const flags = snapshot.obstacles.filter((object) => object.flag)
+
+		expect(flags.map((object) => [object.x, object.y])).toEqual([
+			[96, 0],
+			[96, 8],
+			[104, 0],
+			[104, 8],
+		])
+		expect(flags.every((object) => object.blocksBullets)).toBe(true)
+		expect(computeThreats(snapshot)[0].hasLineToBase).toBe(true)
+
+		game.objects = [
+			...game.objects,
+			new GameObject('STONE', 12, 8),
+			new GameObject('STONE', 13, 8),
+		]
+
 		expect(computeThreats(snapshotOf(game))[0].hasLineToBase).toBe(false)
 	})
 })

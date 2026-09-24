@@ -95,6 +95,7 @@ export interface AiObstacleSnapshot {
 	y: number
 	destructible: boolean
 	blocksBullets: boolean
+	flag: boolean
 }
 
 export type PlayerIntent = 'pushing' | 'holding' | 'retreating' | 'dead'

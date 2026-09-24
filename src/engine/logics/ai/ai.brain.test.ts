@@ -174,7 +174,7 @@ describe('selectGoal', () => {
 		game.p1.coordinateX = 100
 		game.p1.coordinateY = 100
 		game.p1.lives = 0
-		game.enemies = [makeEnemy(140, 100)]
+		game.enemies = [makeEnemy(140, 160)]
 		const hunter = setup(game, createMemory())
 		const guardian = setup(game, createMemory())
 

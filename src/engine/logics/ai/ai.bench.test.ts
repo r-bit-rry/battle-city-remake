@@ -115,15 +115,19 @@ describe('AI soak benchmarks', () => {
 		}
 	})
 
-	it('keeps the guardian closer to the base than the hunter', () => {
+	it('keeps the guardian closer to the base than the hunter while both keep it alive', () => {
+		const guardianRuns = SEEDS.map((seed) => run(seed, 'pro', 'guardian'))
+		const hunterRuns = SEEDS.map((seed) => run(seed, 'pro', 'hunter'))
 		const guardian = average(
-			SEEDS.map((seed) => run(seed, 'pro', 'guardian').nearBaseRatio)
+			guardianRuns.map((metrics) => metrics.nearBaseRatio)
 		)
 		const hunter = average(
-			SEEDS.map((seed) => run(seed, 'pro', 'hunter').nearBaseRatio)
+			hunterRuns.map((metrics) => metrics.nearBaseRatio)
 		)
 
 		expect(guardian).toBeGreaterThan(hunter)
+		expect(guardianRuns.every((metrics) => metrics.baseAlive)).toBe(true)
+		expect(hunterRuns.every((metrics) => metrics.baseAlive)).toBe(true)
 	})
 
 	it('never friendly-fires, never wedges and never loses the base on elite', () => {
