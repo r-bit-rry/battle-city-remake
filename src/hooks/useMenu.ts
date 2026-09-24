@@ -1,4 +1,4 @@
-import { GameSettings, TypeAiLevel } from '@/engine'
+import { AI_TIER_LABELS, GameSettings, TypeAiLevel, TypeAiRole } from '@/engine'
 import { TypePlayerLevel } from '@/types'
 import { useCallback, useEffect, useState } from 'react'
 import { useGame } from './useGame'
@@ -17,19 +17,14 @@ type MenuState =
 	| 'find lobby'
 
 const AI_LEVELS: TypeAiLevel[] = ['beginner', 'intermediate', 'pro', 'elite']
-
-const AI_LEVEL_LABELS: Record<TypeAiLevel, string> = {
-	beginner: '0',
-	intermediate: '1',
-	pro: '2',
-	elite: '3',
-}
+const AI_ROLES: TypeAiRole[] = ['guardian', 'wingman', 'hunter']
 
 const menuStates = (
 	gameSettings: GameSettings,
 	lobbyId: string,
 	searchingLobbyId: string,
-	aiLevel: TypeAiLevel
+	aiLevel: TypeAiLevel,
+	aiRole: TypeAiRole
 ) => ({
 	main: ['1 PLAYER', '1 PLAYER + AI', '2 PLAYERS', 'MULTIPLAYER', 'SETTINGS'],
 	'1 player': ['PLAY', 'CONSTRUCTION', 'BACK'],
@@ -43,7 +38,8 @@ const menuStates = (
 		`SOUND (${gameSettings.soundPack})`,
 		`FRIENDLY FIRE (${gameSettings.friendlyFire ? 'y' : 'n'})`,
 		`PLAYER LEVEL (${gameSettings.playerLevel})`,
-		`AI LEVEL (${AI_LEVEL_LABELS[aiLevel]})`,
+		`AI LEVEL (${AI_TIER_LABELS[aiLevel]})`,
+		`AI ROLE (${aiRole.toUpperCase()})`,
 		`AUTO RESPAWN (${gameSettings.survivorRespawn ? 'y' : 'n'})`,
 		`HARDCORE (${gameSettings.hardcore ? 'y' : 'n'})`,
 		`BACK`,
@@ -65,6 +61,7 @@ export const useMenu = () => {
 	const [friendlyFire, setFriendlyFire] = useState(false)
 	const [playerLevel, setPlayerLevel] = useState<TypePlayerLevel>(0)
 	const [aiLevel, setAiLevel] = useState<TypeAiLevel>('beginner')
+	const [aiRole, setAiRole] = useState<TypeAiRole>('wingman')
 	const [survivorRespawn, setSurvivorRespawn] = useState(true)
 
 	// Lobbying
@@ -72,7 +69,7 @@ export const useMenu = () => {
 	const [searchingLobbyId, setSearchingLobbyId] = useState('')
 
 	const getMenuStates = () =>
-		menuStates(gameSettings, lobbyId, searchingLobbyId, aiLevel)
+		menuStates(gameSettings, lobbyId, searchingLobbyId, aiLevel, aiRole)
 
 	const playMenuSound = useCallback(() => {
 		const sound = new Audio(`/audio/${soundPack}/menu.ogg`)
@@ -135,6 +132,18 @@ export const useMenu = () => {
 		playChooseSound()
 	}
 
+	const cycleAiRole = (action: '+' | '-') => {
+		setAiRole((prev) => {
+			const index = AI_ROLES.indexOf(prev)
+			const next =
+				action === '+'
+					? (index + 1) % AI_ROLES.length
+					: (index - 1 + AI_ROLES.length) % AI_ROLES.length
+			return AI_ROLES[next]
+		})
+		playChooseSound()
+	}
+
 	useEffect(() => {
 		const chooseHandler = (code: string) => {
 			if (isEditing) return
@@ -155,7 +164,13 @@ export const useMenu = () => {
 								updateState('1 player')
 								break
 							case 2:
-								startLocalGame(2, settings, undefined, aiLevel)
+								startLocalGame(
+									2,
+									settings,
+									undefined,
+									aiLevel,
+									aiRole
+								)
 								break
 							case 3:
 								updateState('2 players')
@@ -215,12 +230,15 @@ export const useMenu = () => {
 								cycleAiLevel('+')
 								break
 							case 5:
-								setSurvivorRespawn((prev) => !prev)
+								cycleAiRole('+')
 								break
 							case 6:
-								setHardcore((prev) => !prev)
+								setSurvivorRespawn((prev) => !prev)
 								break
 							case 7:
+								setHardcore((prev) => !prev)
+								break
+							case 8:
 								updateState('main')
 								break
 						}
@@ -320,7 +338,7 @@ export const useMenu = () => {
 		return () => {
 			document.removeEventListener('keypress', chooseHandlerListener)
 		}
-	}, [state, choose, soundPack, isEditing, aiLevel, survivorRespawn])
+	}, [state, choose, soundPack, isEditing, aiLevel, aiRole, survivorRespawn])
 
 	return {
 		state: getMenuStates()[state],

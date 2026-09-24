@@ -99,17 +99,17 @@ describe('menu cursor alignment', () => {
 		expect(cursorTop()).toBe(rowCenter(5))
 	})
 
-	it('centers the cursor on all seven settings rows', () => {
+	it('centers the cursor on all eight settings rows', () => {
 		const { rows, cursorTop, rowCenter, press } = renderMenu()
 
 		for (let i = 0; i < 4; i++) press('KeyS')
 		press('Enter')
 
-		expect(rows()).toHaveLength(7)
+		expect(rows()).toHaveLength(8)
 		expect(cursorTop()).toBe(rowCenter(1))
 
-		for (let i = 0; i < 6; i++) press('KeyS')
-		expect(cursorTop()).toBe(rowCenter(7))
+		for (let i = 0; i < 7; i++) press('KeyS')
+		expect(cursorTop()).toBe(rowCenter(8))
 
 		press('KeyS')
 		expect(cursorTop()).toBe(rowCenter(1))
@@ -135,5 +135,19 @@ describe('menu cursor alignment', () => {
 
 		press('Enter')
 		expect(document.body.textContent).toContain('AI LEVEL (0)')
+	})
+
+	it('shows and cycles the AI role in settings', () => {
+		const { press } = renderMenu()
+
+		for (let i = 0; i < 4; i++) press('KeyS')
+		press('Enter')
+
+		expect(document.body.textContent).toContain('AI ROLE (WINGMAN)')
+
+		for (let i = 0; i < 4; i++) press('KeyS')
+		press('Enter')
+
+		expect(document.body.textContent).toContain('AI ROLE (HUNTER)')
 	})
 })
