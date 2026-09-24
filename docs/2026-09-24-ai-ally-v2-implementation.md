@@ -280,7 +280,7 @@ Lint warning baseline (unchanged by this work): `useAudio.ts:53`, `useEditorKeys
   check protects this adjacency.
 - **Wingman base losses remain** — pro loses the base on seeds 7 and 42, beginner and
   intermediate on most seeds; only the role and elite tests assert base survival.
-- **Untested variants from the ledger** (`progress.md`): capability-gating assertions are
+- **Untested variants**: capability-gating assertions are
   one-sided for `dodgeHorizon`/`pathfinding`; `PLAYER_TRACK_SIZE` cap, danger-decay merge
   order and the path danger-penalty branch are untested; HELMET/GRENADE/TIMER bonus arms
   and intercept/support/retreat variants lack direct tests; `isDirectionSafe` has no
@@ -292,6 +292,24 @@ Lint warning baseline (unchanged by this work): `useAudio.ts:53`, `useEditorKeys
   it.
 - **Base-line rays skip flags only** — protective bricks still block LOS by design, so
   the threat's LOS term mirrors real bullet lanes rather than intent.
+
+## Post-review adjudications
+
+The final whole-branch review produced one critical and three important findings; the
+fix wave shipped the coordinate-refresh fix (non-id goals) and the bench metric/gating
+fixes. The following were explicitly deferred by controller ruling:
+
+- **Id-goal coordinate refresh** — retained `engage`/`defend`/`collect` goals keep the
+  target coordinates from first selection (v1 behavior); refreshing them re-baselines
+  the whole soak landscape and needs a dedicated re-tuning pass.
+- **Score refresh / commitment re-tuning** — the retention comparison keeps the
+  historical `memory.goalScore` (intentional hysteresis). Comparing fresh candidate
+  scores changes every tier's soak outcome and requires profile/role re-tuning.
+- **Per-frame A\* retry on sealed targets** — `findPath` returning null re-runs on the
+  next frame (v1 behavior). Suppressing the retry regressed dynamic-blocker navigation
+  and was reverted; measured bench cost context is 8.65–9.85 ms/frame.
+- **Spec tier matrix** — `docs/superpowers/specs/2026-09-24-ai-ally-v2-design.md` holds
+  the original design values; this record's tier table holds the final tuned ones.
 
 ## Manual QA checklist
 
