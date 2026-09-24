@@ -279,10 +279,13 @@ export const decideTactics = (
 				const brick = drillDirection(snapshot)
 				if (brick) {
 					memory.path = null
+					if (ai.direction === brick && memory.fireCooldown <= 0) {
+						memory.fireCooldown = features.fireCooldown
 
-					return ai.direction === brick
-						? { move: null, fire: true }
-						: { move: brick, fire: false }
+						return { move: null, fire: true }
+					}
+
+					return { move: brick, fire: false }
 				}
 			}
 

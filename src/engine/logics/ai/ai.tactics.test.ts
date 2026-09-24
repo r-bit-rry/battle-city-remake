@@ -12,9 +12,9 @@ afterEach(() => vi.restoreAllMocks())
 const decide = (
 	game: ReturnType<typeof makeAiGame>,
 	goal: Parameters<typeof decideTactics>[3] = null,
-	path: Parameters<typeof decideTactics>[4] = null
+	path: Parameters<typeof decideTactics>[4] = null,
+	memory: ReturnType<typeof createMemory> = createMemory()
 ) => {
-	const memory = createMemory()
 	const snapshot = buildSnapshot(game, memory)
 	const danger = buildDangerMap(snapshot, 45)
 	const busy = [...game.enemies, ...game.objects, game.p1]
@@ -156,5 +156,26 @@ describe('decideTactics', () => {
 
 		expect(decision.fire).toBe(true)
 		expect(decision.move).toBeNull()
+	})
+
+	it('gates escape-brick fire on the fire cooldown', () => {
+		const game = makeAiGame()
+		game.p2!.coordinateX = 40
+		game.p2!.coordinateY = 40
+		game.p2!.direction = 'TOP'
+		game.bullets = [new Bullet(44, 80, 'BOTTOM', 'NORMAL', 'enemy-1')]
+		game.objects = [
+			new GameObject('BRICK', 4, 5),
+			new GameObject('BRICK', 6, 5),
+		]
+
+		const ready = decide(game)
+		const cooling = decide(game, null, null, {
+			...createMemory(),
+			fireCooldown: 5,
+		})
+
+		expect(ready).toEqual({ move: null, fire: true })
+		expect(cooling.fire).toBe(false)
 	})
 })
