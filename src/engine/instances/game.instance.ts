@@ -4,6 +4,7 @@ import {
 	EnemyList,
 	GameSettings,
 	TypeAiLevel,
+	TypeAiRole,
 	TypeEnemySpawnPosition,
 	TypeSound,
 } from '../types'
@@ -66,6 +67,7 @@ export class Game {
 	editor?: EditorObject[]
 	settings: GameSettings
 	aiLevel?: TypeAiLevel
+	aiRole?: TypeAiRole
 
 	constructor(
 		id: string,
@@ -73,11 +75,13 @@ export class Game {
 		p2: string | null,
 		settings: GameSettings,
 		editor?: EditorObject[],
-		aiLevel?: TypeAiLevel
+		aiLevel?: TypeAiLevel,
+		aiRole?: TypeAiRole
 	) {
 		this.id = id
 		this.settings = settings
 		this.aiLevel = aiLevel
+		this.aiRole = aiRole
 
 		this.p1 = new Player(
 			'left',

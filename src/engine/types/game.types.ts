@@ -8,6 +8,8 @@ export interface GameSettings {
 
 export type TypeAiLevel = 'beginner' | 'intermediate' | 'pro' | 'elite'
 
+export type TypeAiRole = 'guardian' | 'wingman' | 'hunter'
+
 export type TypeSimpleSound =
 	| 'bang'
 	| 'bonus_pickup'
