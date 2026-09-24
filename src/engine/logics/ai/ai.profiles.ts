@@ -53,10 +53,10 @@ export const AI_TIER_FEATURES: Record<TypeAiLevel, AiTierFeatures> = {
 	},
 	pro: {
 		pathfinding: 'astar',
-		decisionInterval: 6,
-		fireCooldown: 18,
-		aimTolerance: 7,
-		aimJitter: 2,
+		decisionInterval: 4,
+		fireCooldown: 12,
+		aimTolerance: 8,
+		aimJitter: 1,
 		aimLead: true,
 		dodgeHorizon: 30,
 		reactiveDodge: true,
@@ -110,7 +110,7 @@ export const AI_ROLE_PROFILES: Record<TypeAiRole, AiRoleProfile> = {
 	},
 	wingman: {
 		weights: {
-			defend: 1.2,
+			defend: 1.8,
 			engage: 1.0,
 			collect: 1.0,
 			support: 1.5,
