@@ -79,12 +79,21 @@ describe('AI ally scenarios', () => {
 		seedRandom(3)
 		const game = makeAiGame('pro')
 		game.levelChangeAnimation = 0
+		game.p1.coordinateX = 40
+		game.p1.coordinateY = 150
 		game.p1.lives = 0
 		game.enemies = [makeEnemy(200, 200)]
+		const distanceToBase = () =>
+			Math.hypot(game.p2!.coordinateX - 103, game.p2!.coordinateY - 31)
+		const startDistance = distanceToBase()
 
 		for (let i = 0; i < 60; i++) gameFrame(game)
 
-		expect(['patrol', 'defend']).toContain(getAiMemory(game)?.goal?.kind)
+		const memory = getAiMemory(game)
+		expect(memory?.goal?.kind).toBe('patrol')
+		expect(memory?.goal?.x).toBe(103)
+		expect(memory?.goal?.y).toBe(31)
+		expect(distanceToBase()).toBeLessThan(startDistance)
 		expect(game.p2!.coordinateY).toBeLessThan(140)
 	})
 
