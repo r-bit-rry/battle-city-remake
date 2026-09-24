@@ -172,4 +172,20 @@ describe('AI ally', () => {
 			expect(game.p2!.lives).toBeGreaterThan(0)
 		}
 	})
+
+	it('stores the requested role and defaults to no role', () => {
+		const withRole = new Game(
+			'local',
+			'p1',
+			'p2',
+			settings,
+			undefined,
+			'pro',
+			'hunter'
+		)
+		const withoutRole = new Game('local', 'p1', 'p2', settings)
+
+		expect(withRole.aiRole).toBe('hunter')
+		expect(withoutRole.aiRole).toBeUndefined()
+	})
 })

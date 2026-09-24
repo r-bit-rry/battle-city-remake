@@ -3,6 +3,7 @@ import {
 	Game,
 	GameSettings,
 	TypeAiLevel,
+	TypeAiRole,
 	gameFrame,
 } from '@/engine'
 import { CreateGameObject } from '@/types'
@@ -27,7 +28,8 @@ interface GameContextInterface {
 		players: 1 | 2,
 		settings: GameSettings,
 		editor?: EditorObject[],
-		aiLevel?: TypeAiLevel
+		aiLevel?: TypeAiLevel,
+		aiRole?: TypeAiRole
 	) => void
 	createLobby: (lobbyId: string, settings: GameSettings) => void
 	joinLobby: (lobbyId: string) => void
@@ -57,7 +59,8 @@ export const GameProvider = ({ children }: Props) => {
 		players: 1 | 2,
 		settings: GameSettings,
 		_editor?: EditorObject[],
-		aiLevel?: TypeAiLevel
+		aiLevel?: TypeAiLevel,
+		aiRole?: TypeAiRole
 	) => {
 		const newGame = new Game(
 			'local',
@@ -65,7 +68,8 @@ export const GameProvider = ({ children }: Props) => {
 			players === 2 ? 'p2' : null,
 			settings,
 			isEdited ? editor : undefined,
-			aiLevel
+			aiLevel,
+			aiRole
 		)
 
 		setGame(newGame)
