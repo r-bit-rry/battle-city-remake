@@ -1,4 +1,4 @@
-import { Game, Player, Tank } from '../instances'
+import { Game, Player } from '../instances'
 import { BusyCoordinates, TypeObject, TypeTank } from '../types'
 
 export const isEnemy = (type: TypeTank | TypeObject) =>
@@ -20,7 +20,7 @@ export const isTank = (type: TypeTank | TypeObject) =>
 // 15x15 tank box vs blocks (8x8) and other tanks (15x15).
 // Touching boxes count as blocked, matching Tank.move() semantics.
 export const isTankBlockedAt = (
-	tank: Tank,
+	tank: { id: string },
 	x: number,
 	y: number,
 	busyCoordinates: BusyCoordinates[]
