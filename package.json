@@ -10,6 +10,7 @@
 		"lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
 		"preview": "vite preview",
 		"test": "vitest run",
+		"bench": "AI_BENCH=1 vitest run src/engine/logics/ai/ai.bench.test.ts",
 		"prettier": "prettier --write '**/*.{ts,js,jsx,tsx,css,html}'"
 	},
 	"dependencies": {

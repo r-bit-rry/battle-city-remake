@@ -3,7 +3,8 @@
 Date: 2026-09-24
 Design spec: `docs/superpowers/specs/2026-09-24-ai-ally-v2-design.md`
 Plan: `docs/superpowers/plans/2026-09-24-ai-ally-v2.md`
-Status: implemented, build + 72 automated tests green, manual QA pending
+Status: implemented; build green; 72 default tests pass with the 3-test soak gated
+behind `npm run bench` (3/3 green); manual QA pending
 
 ## What was built
 
@@ -30,8 +31,9 @@ Status: implemented, build + 72 automated tests green, manual QA pending
    re-score.
 8. **UI + plumbing** — SETTINGS gains `AI ROLE (…)` as the 5th of 8 rows; sidebar shows
    `AI <R><tier>` (e.g. `AI W2`); `aiRole` threaded through `Game`, provider and menu.
-9. **Verification** — 72 tests across 12 files, including 6 game-shaped scenarios and
-   seeded soak benchmarks; benchmarks exposed a latent LOS bug that was fixed.
+9. **Verification** — 72 default tests across 11 files plus a gated 3-test soak,
+   including 6 game-shaped scenarios and seeded soak benchmarks; benchmarks exposed a
+   latent LOS bug that was fixed.
 
 ## Design decisions
 
@@ -119,17 +121,17 @@ From the spec (capability unlocks + scaling):
 | Feature | 0 beginner | 1 intermediate | 2 pro | 3 elite |
 |---|---|---|---|---|
 | Pathing | greedy steer | lane BFS | A* + danger cost | A* + brick drilling |
-| Aim tolerance | ±3px | ±5px | ±7px | ±8px |
+| Aim tolerance | ±3px | ±5px | ±8px | ±8px |
 | Aim lead | none | none | bullet-speed lead | bullet-speed lead |
 | Aim jitter | ±6px | ±4px | ±2px | ±1px |
-| Fire cooldown | 45f | 30f | 18f | 12f |
-| Decision interval | 12f | 8f | 6f | 4f |
-| Dodge | none | reactive (v1) | predicted ray (30f horizon) | predicted ray (45f) + escape brick / block-when-boxed |
-| Base defense | small radius, nearest | radius + nearest | threat-ranked + interception | full-map interception |
+| Fire cooldown | 45f | 30f | 12f | 12f |
+| Decision interval | 12f | 8f | 4f | 4f |
+| Dodge | none | reactive (12f horizon) | predicted ray (45f) + escape brick | predicted ray (45f) + escape brick + block-when-boxed |
+| Base defense | small radius, nearest | radius + nearest | threat-ranked + interception within 1.4× danger radius | same, larger radius + block-when-boxed |
 | Bonus logic | none | safe only | type/state valuation | + yield etiquette + timed HELMET/TIMER/GRENADE |
 | Coordination | follow p1 | follow p1 | cover opposite lane | intent inference + chokepoint cover + regroup |
 | Brick drilling | no | no | yes | yes |
-| Retreat threshold | early | early | medium | late |
+| Retreat threshold | early (≤2 lives) | early (≤2 lives) | late (≤1 life) | late (≤1 life) |
 
 `baseDangerRadius` keeps the v1 values (56/72/96/110); tiers 0–1 keep a chase leash
 (72/80px), tiers 2–3 have none. The T0/T1 "follow p1" rows are the `patrol` goal anchored
@@ -192,6 +194,10 @@ Guardian `nearBaseRatio` average **0.6007** vs hunter **0.2800**. Elite test 3:
 `baseAlive` true on all seeds, `friendlyFire` 0 across all 21 runs, `stuckRatio` 0.0000
 everywhere.
 
+These ratios were recorded with the constant `FRAMES` as the denominator: the metric
+now divides by frames actually survived, so ratios run higher for runs that end early
+(see Verification).
+
 ### LOS bug found and fixed during benchmarking
 
 The first benchmark round found the guardian losing the base on 2/3 seeds despite the
@@ -212,16 +218,18 @@ LOS ray but the two stones at tiles `(12,8)/(13,8)` still block it.
 
 ## Verification
 
-Commands run once on the final committed state:
+Commands run on the fix-wave tree, with the soak gated behind `AI_BENCH=1`:
 
 | Command | Result |
 |---|---|
-| `npm test` | **12 files / 72 tests passed**, exit 0; vitest 552.60s (bench file 551.86s) |
-| `npm run build` | exit 0; tsc + vite, 228 modules, built in 1.65s |
-| `npm run lint` | exit 1; 0 errors, exactly the 4 pre-existing `src/hooks/*` exhaustive-deps warnings |
+| `npm test` | **11 files / 72 tests passed, 1 file / 3 tests skipped (soak gated, 75 total)**, exit 0; vitest 5.96s |
+| `npm run bench` | **3 soak tests / 21 runs passed**; 558.26s (9:19) |
+| `npm run build` | exit 0; tsc + vite, 228 modules, built in 1.40s |
+| `npx eslint <changed files>` | exit 0; 0 errors, 0 warnings |
 
-Bench wall time inside `npm test`: 9:13 total; test 1 113.1s, test 2 383.7s (~69% of the
-suite), test 3 55.1s. `npm test` runs the whole suite, including the ~9-minute soak.
+The soak no longer runs inside `npm test`; it is gated by `AI_BENCH=1` and run with
+`npm run bench`. The gated command measured 558.26s on the fix-wave tree (test 1
+115.2s, test 2 390.8s, test 3 51.7s), matching the historical in-suite total.
 
 Lint warning baseline (unchanged by this work): `useAudio.ts:53`, `useEditorKeys.ts:45`,
 `useMenu.ts:120`, `useMenu.ts:341`.
@@ -260,10 +268,10 @@ Lint warning baseline (unchanged by this work): `useAudio.ts:53`, `useEditorKeys
 
 ## Known limitations / follow-ups
 
-- **Bench runtime in `npm test`** — ~9 minutes of synchronous CPU (role test alone
-  ~6.4 min); vitest timeouts cannot interrupt the synchronous loop, so a hang in
-  `gameFrame` would wedge CI. Consider a `bench` script excluded from CI or a reduced
-  `FRAMES` for CI.
+- **Bench runtime** — the ~9-minute soak (role test alone ~6.4 min) no longer runs in
+  `npm test`; it is gated behind `AI_BENCH=1` and runs via `npm run bench`. Vitest
+  timeouts still cannot interrupt the synchronous loop, so a hang in `gameFrame` would
+  wedge the bench command; run it outside CI or reduce `FRAMES` for CI.
 - **Thin beginner→intermediate adjacency margin** — intermediate averages 357.3 below
   beginner, leaving only 42.7 points before the `-400` allowance fails. `elite > beginner`
   (+208.0) and `pro > intermediate` (+346.0) are comfortable.

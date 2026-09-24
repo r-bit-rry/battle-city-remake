@@ -40,7 +40,10 @@ export const aiFrameLogic = (game: Game) => {
 
 	if (memory.fireCooldown > 0) memory.fireCooldown--
 
-	const danger = buildDangerMap(snapshot, Math.max(features.dodgeHorizon, 1))
+	const danger =
+		features.dodgeHorizon > 0
+			? buildDangerMap(snapshot, features.dodgeHorizon)
+			: { cells: new Map<string, number>() }
 
 	if (
 		(memory.goal?.enemyId &&

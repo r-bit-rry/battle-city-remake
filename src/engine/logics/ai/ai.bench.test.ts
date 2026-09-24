@@ -42,6 +42,17 @@ const run = (seed: number, level: TypeAiLevel, role: TypeAiRole): Metrics => {
 		const beforeY = p2.coordinateY
 		const p1LivesBefore = game.p1.lives
 		const move = game.p2Controls.move
+		const nearP1 = game.bullets
+			.filter(
+				(bullet) =>
+					Math.abs(bullet.coordinateX - game.p1.coordinateX) <= 12 &&
+					Math.abs(bullet.coordinateY - game.p1.coordinateY) <= 12
+			)
+			.map((bullet) => ({
+				x: bullet.coordinateX,
+				y: bullet.coordinateY,
+				enemy: isEnemy(bullet.shooter),
+			}))
 
 		gameFrame(game)
 		survived = i + 1
@@ -64,14 +75,9 @@ const run = (seed: number, level: TypeAiLevel, role: TypeAiRole): Metrics => {
 		}
 		if (p2.coordinateY < 100) nearBaseFrames++
 		if (game.p1.lives < p1LivesBefore) {
-			const nearP1 = game.bullets.filter(
-				(bullet) =>
-					Math.abs(bullet.coordinateX - game.p1.coordinateX) <= 8 &&
-					Math.abs(bullet.coordinateY - game.p1.coordinateY) <= 8
-			)
 			if (
-				nearP1.some((bullet) => !isEnemy(bullet.shooter)) &&
-				!nearP1.some((bullet) => isEnemy(bullet.shooter))
+				nearP1.some((bullet) => !bullet.enemy) &&
+				!nearP1.some((bullet) => bullet.enemy)
 			)
 				friendlyFire++
 		}
@@ -87,7 +93,7 @@ const run = (seed: number, level: TypeAiLevel, role: TypeAiRole): Metrics => {
 		baseAlive,
 		stuckRatio: movingFrames ? stuckFrames / movingFrames : 0,
 		friendlyFire,
-		nearBaseRatio: nearBaseFrames / FRAMES,
+		nearBaseRatio: survived ? nearBaseFrames / survived : 0,
 	}
 }
 
@@ -96,7 +102,7 @@ const average = (values: number[]) =>
 
 afterEach(() => vi.restoreAllMocks())
 
-describe('AI soak benchmarks', () => {
+describe.runIf(process.env.AI_BENCH === '1')('AI soak benchmarks', () => {
 	it('orders tiers by composite score', () => {
 		const tiers: TypeAiLevel[] = [
 			'beginner',
@@ -133,9 +139,18 @@ describe('AI soak benchmarks', () => {
 	it('never friendly-fires, never wedges and never loses the base on elite', () => {
 		for (const seed of SEEDS) {
 			const metrics = run(seed, 'elite', 'wingman')
-			expect(metrics.friendlyFire).toBe(0)
-			expect(metrics.stuckRatio).toBeLessThan(0.05)
-			expect(metrics.baseAlive).toBe(true)
+			expect(
+				metrics.friendlyFire,
+				`seed ${seed}: ${JSON.stringify(metrics)}`
+			).toBe(0)
+			expect(
+				metrics.stuckRatio,
+				`seed ${seed}: ${JSON.stringify(metrics)}`
+			).toBeLessThan(0.05)
+			expect(
+				metrics.baseAlive,
+				`seed ${seed}: ${JSON.stringify(metrics)}`
+			).toBe(true)
 		}
 	})
 })

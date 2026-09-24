@@ -333,8 +333,19 @@ export const selectGoal = (
 		current &&
 		isGoalValid(current, snapshot) &&
 		best.weighted <= memory.goalScore * 1.15
-	)
+	) {
+		const currentMatch = candidates.find(
+			(candidate) =>
+				candidate.goal.kind === current.kind &&
+				candidate.goal.enemyId === current.enemyId &&
+				candidate.goal.bonusId === current.bonusId
+		)
+		if (currentMatch && !current.enemyId && !current.bonusId) {
+			memory.goal = currentMatch.goal
+			return currentMatch.goal
+		}
 		return current
+	}
 
 	memory.goalScore = best.weighted
 	if (best.goal.enemyId) memory.lastTargetId = best.goal.enemyId

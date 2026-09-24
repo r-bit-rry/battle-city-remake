@@ -228,7 +228,8 @@ seeds to keep ordering stable).
 
 A* runs over the 50×50 lane grid (≤2500 nodes) every 4–12 frames; danger rays are
 ≤10 bullets × ≤210 steps; per-frame tactics are O(enemies + bullets). No new
-dependencies, no workers. The bench suite records average frame cost.
+dependencies, no workers. The bench suite reports wall time per run via
+`npm run bench`; it does not record average frame cost.
 
 ## Risks and mitigations
 

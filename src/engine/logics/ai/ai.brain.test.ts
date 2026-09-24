@@ -105,6 +105,7 @@ describe('selectGoal', () => {
 			AI_ROLE_PROFILES.wingman,
 			memory
 		)
+		memory.goal = first
 		const second = selectGoal(
 			snapshot,
 			threats,
@@ -115,6 +116,107 @@ describe('selectGoal', () => {
 
 		expect(second?.kind).toBe(first?.kind)
 		expect(second?.enemyId).toBe(first?.enemyId)
+	})
+
+	it('refreshes a retained patrol anchor when the player moves', () => {
+		const game = makeAiGame('beginner')
+		game.p1.coordinateX = 40
+		game.p1.coordinateY = 40
+		game.p2!.coordinateX = 40
+		game.p2!.coordinateY = 100
+		const { snapshot, threats, memory } = setup(game)
+		const first = selectGoal(
+			snapshot,
+			threats,
+			AI_TIER_FEATURES.beginner,
+			AI_ROLE_PROFILES.wingman,
+			memory
+		)
+		expect(first?.kind).toBe('patrol')
+		memory.goal = first
+
+		game.p1.coordinateX = 180
+		game.p1.coordinateY = 180
+		const next = setup(game, memory)
+		const second = selectGoal(
+			next.snapshot,
+			next.threats,
+			AI_TIER_FEATURES.beginner,
+			AI_ROLE_PROFILES.wingman,
+			memory
+		)
+
+		expect(second?.kind).toBe('patrol')
+		expect(second?.x).toBe(180)
+		expect(second?.y).toBe(180)
+	})
+
+	it('retains a reached patrol goal at the anchor', () => {
+		const game = makeAiGame('pro')
+		game.p1.lives = 0
+		game.enemies = [makeEnemy(200, 200)]
+		game.p2!.coordinateX = 40
+		game.p2!.coordinateY = 100
+		const { snapshot, threats, memory } = setup(game)
+		const first = selectGoal(
+			snapshot,
+			threats,
+			AI_TIER_FEATURES.pro,
+			AI_ROLE_PROFILES.wingman,
+			memory
+		)
+		expect(first?.kind).toBe('patrol')
+		memory.goal = first
+
+		game.p2!.coordinateX = 103
+		game.p2!.coordinateY = 40
+		const next = setup(game, memory)
+		const second = selectGoal(
+			next.snapshot,
+			next.threats,
+			AI_TIER_FEATURES.pro,
+			AI_ROLE_PROFILES.wingman,
+			memory
+		)
+
+		expect(second?.kind).toBe('patrol')
+		expect(second?.x).toBe(103)
+		expect(second?.y).toBe(31)
+	})
+
+	it('keeps a retained engage target with pre-fix coordinates', () => {
+		const game = makeAiGame('pro')
+		game.p2!.coordinateX = 40
+		game.p2!.coordinateY = 100
+		game.p1.coordinateX = 100
+		game.p1.coordinateY = 100
+		game.enemies = [makeEnemy(40, 130)]
+		const { snapshot, threats, memory } = setup(game)
+		const first = selectGoal(
+			snapshot,
+			threats,
+			AI_TIER_FEATURES.pro,
+			AI_ROLE_PROFILES.wingman,
+			memory
+		)
+		expect(first?.kind).toBe('engage')
+		memory.goal = first
+
+		game.enemies[0].coordinateX = 60
+		game.enemies[0].coordinateY = 140
+		const next = setup(game, memory)
+		const second = selectGoal(
+			next.snapshot,
+			next.threats,
+			AI_TIER_FEATURES.pro,
+			AI_ROLE_PROFILES.wingman,
+			memory
+		)
+
+		expect(second?.kind).toBe('engage')
+		expect(second?.enemyId).toBe(first?.enemyId)
+		expect(second?.x).toBe(40)
+		expect(second?.y).toBe(130)
 	})
 
 	it('drops a stale enemy goal and re-selects', () => {
