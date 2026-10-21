@@ -10,6 +10,7 @@ import {
 	DangerMap,
 	LanePath,
 } from './ai.types'
+import { FLAG_X, FLAG_Y } from './ai.perception'
 import { advance, findIncomingBullet } from './ai.threat'
 
 export const ALL_DIRECTIONS: TypeDirection[] = [
@@ -21,6 +22,8 @@ export const ALL_DIRECTIONS: TypeDirection[] = [
 
 const WAYPOINT_REACHED_DISTANCE = 8
 const HIT_BAND = 8
+const SNIPE_RANGE = 140
+export const COMMIT_TICKS = 8
 
 const distance = (x1: number, y1: number, x2: number, y2: number) =>
 	Math.hypot(x1 - x2, y1 - y2)
@@ -61,6 +64,27 @@ export const directionToWaypoint = (
 	if (waypoint.y !== ai.y) return waypoint.y > ai.y ? 'TOP' : 'BOTTOM'
 
 	return null
+}
+
+// An enemy bullet on a clear lane to the flag is worth taking instead of
+// dodging: a lost life respawns, the flag does not.
+const threatensBase = (bullet: AiSnapshot['bullets'][number]) => {
+	const vertical = bullet.direction === 'TOP' || bullet.direction === 'BOTTOM'
+	const lane = vertical
+		? Math.abs(bullet.x - FLAG_X)
+		: Math.abs(bullet.y - FLAG_Y)
+	if (lane > HIT_BAND) return false
+
+	const closing = vertical
+		? bullet.direction === 'TOP'
+			? FLAG_Y > bullet.y
+			: FLAG_Y < bullet.y
+		: bullet.direction === 'LEFT'
+			? FLAG_X < bullet.x
+			: FLAG_X > bullet.x
+	if (!closing) return false
+
+	return distance(bullet.x, bullet.y, FLAG_X, FLAG_Y) <= SNIPE_RANGE
 }
 
 const isDirectionSafe = (
@@ -266,12 +290,84 @@ export const decideTactics = (
 	_danger: DangerMap,
 	memory: AiMemory,
 	busy: BusyCoordinates[]
+): AiDecision =>
+	commitMove(
+		snapshot.ai,
+		chooseTactics(snapshot, features, goal, path, memory, busy),
+		memory,
+		busy
+	)
+
+// The engine only turns a tank when `move !== direction` and never moves on the
+// same frame (players.logic.ts), so a heading that is re-decided every frame
+// spins in place. Hold the chosen turn until the tank has driven down it.
+const detourFor = (move: TypeDirection): TypeDirection[] =>
+	move === 'TOP' || move === 'BOTTOM'
+		? ['LEFT', 'RIGHT', move]
+		: ['TOP', 'BOTTOM', move]
+
+const commitMove = (
+	ai: AiSnapshot['ai'],
+	decision: AiDecision,
+	memory: AiMemory,
+	busy: BusyCoordinates[]
+): AiDecision => {
+	const chosen = decision.move
+	if (!chosen) return decision
+
+	// Never press into a wall: commit to a perpendicular detour instead of
+	// spending the window on a heading the engine cannot move down.
+	const move = canStep(ai, chosen, busy)
+		? chosen
+		: detourFor(chosen).find((direction) => canStep(ai, direction, busy))
+
+	if (!move) {
+		memory.commitDir = null
+		memory.commitTicks = 0
+
+		return { move: null, fire: decision.fire }
+	}
+
+	if (move === memory.commitDir) {
+		memory.commitTicks = COMMIT_TICKS
+
+		return { move, fire: decision.fire }
+	}
+
+	// a new goal or a dodge clears the commitment; otherwise this is the
+	// flip-flop the engine turns into a spin
+	if (
+		memory.commitDir &&
+		memory.commitTicks > 0 &&
+		canStep(ai, memory.commitDir, busy)
+	) {
+		memory.commitTicks--
+
+		return { move: memory.commitDir, fire: false }
+	}
+
+	memory.commitDir = move
+	memory.commitTicks = COMMIT_TICKS
+
+	return { move, fire: decision.fire }
+}
+
+const chooseTactics = (
+	snapshot: AiSnapshot,
+	features: AiTierFeatures,
+	goal: AiGoal | null,
+	path: LanePath | null,
+	memory: AiMemory,
+	busy: BusyCoordinates[]
 ): AiDecision => {
 	const ai = snapshot.ai
 
 	if (features.dodgeHorizon > 0) {
 		const incoming = findIncomingBullet(snapshot, features.dodgeHorizon)
-		if (incoming) {
+		if (incoming && !threatensBase(incoming)) {
+			// a dodge always wins over a committed heading
+			memory.commitDir = null
+			memory.commitTicks = 0
 			const perpendicular: TypeDirection[] =
 				incoming.direction === 'LEFT' || incoming.direction === 'RIGHT'
 					? ['TOP', 'BOTTOM']
@@ -340,6 +436,28 @@ export const decideTactics = (
 		}
 	}
 
+	// A clear row/column inside SNIPE_RANGE is worth a shot even when the enemy
+	// is farther out than this tier's engage range.
+	let snipeTurn: TypeDirection | null = null
+	for (const enemy of snapshot.enemies) {
+		if (distance(ai.x, ai.y, enemy.x, enemy.y) > SNIPE_RANGE) continue
+		const aim = firingDirection(ai, enemy, HIT_BAND)
+		if (!aim) continue
+		if (friendInLine(ai, aim, snapshot.player)) continue
+		if (!shotPathClear(ai, aim, enemy, snapshot)) continue
+		if (ai.direction !== aim) {
+			if (!snipeTurn) snipeTurn = aim
+			continue
+		}
+		if (memory.fireCooldown <= 0 && ai.availableBullets > 0) {
+			memory.fireCooldown = features.fireCooldown
+
+			return { move: null, fire: true }
+		}
+		if (!snipeTurn) snipeTurn = aim
+	}
+	if (snipeTurn) return { move: snipeTurn, fire: false }
+
 	const tolerance =
 		Math.max(HIT_BAND, features.aimTolerance) +
 		Math.random() * features.aimJitter
@@ -361,6 +479,13 @@ export const decideTactics = (
 	for (const enemy of candidates) {
 		const { aim, target } = resolveAim(ai, enemy, features, tolerance)
 		if (!aim) continue
+		// Turning toward a lane that cannot be shot down is how the AI spins in
+		// place: the next frame picks the other lane again.
+		if (
+			friendInLine(ai, aim, snapshot.player) ||
+			!shotPathClear(ai, aim, target, snapshot)
+		)
+			continue
 		if (ai.direction !== aim) {
 			if (
 				enemy.id === goal?.enemyId &&
@@ -371,11 +496,6 @@ export const decideTactics = (
 
 			continue
 		}
-		if (
-			friendInLine(ai, aim, snapshot.player) ||
-			!shotPathClear(ai, aim, target, snapshot)
-		)
-			continue
 		if (memory.fireCooldown <= 0 && ai.availableBullets > 0) {
 			memory.fireCooldown = features.fireCooldown
 
@@ -432,10 +552,10 @@ export const decideTactics = (
 	}
 
 	if (!goal) return { move: null, fire: false }
-	if (
-		!goal.enemyId &&
-		distance(ai.x, ai.y, goal.x, goal.y) <= WAYPOINT_REACHED_DISTANCE
-	)
+	// Stop on a positional goal (a rally point or a target we already reached)
+	// instead of orbiting it: the engine turns before it moves, so walking a
+	// last few pixels would flip the heading every frame.
+	if (distance(ai.x, ai.y, goal.x, goal.y) <= WAYPOINT_REACHED_DISTANCE)
 		return { move: null, fire: false }
 
 	let direction: TypeDirection | null = null

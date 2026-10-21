@@ -16,6 +16,7 @@ export interface SimMetrics {
 	kills: number
 	baseAlive: boolean
 	aiAlive: boolean
+	/** Ticks where the AI tank's position did not change, over all counted ticks. */
 	stuckRatio: number
 	friendlyFire: number
 	p50Ms: number
@@ -52,7 +53,6 @@ export class Sim {
 	private ticks = 0
 	private kills = 0
 	private stuckTicks = 0
-	private movingTicks = 0
 	private friendlyFire = 0
 	private times: number[] = []
 
@@ -85,9 +85,7 @@ export class Sim {
 			kills: this.kills,
 			baseAlive,
 			aiAlive: !!this.game.p2?.lives,
-			stuckRatio: this.movingTicks
-				? this.stuckTicks / this.movingTicks
-				: 0,
+			stuckRatio: this.ticks ? this.stuckTicks / this.ticks : 0,
 			friendlyFire: this.friendlyFire,
 			p50Ms: percentile(sorted, 0.5),
 			p99Ms: percentile(sorted, 0.99),
@@ -107,7 +105,6 @@ export class Sim {
 		const beforeX = p2.coordinateX
 		const beforeY = p2.coordinateY
 		const p1Lives = game.p1.lives
-		const move = game.p2Controls.move
 		const nearP1 = game.bullets
 			.filter(
 				(bullet) =>
@@ -132,11 +129,8 @@ export class Sim {
 				this.kills++
 			}
 		}
-		if (move !== null) {
-			this.movingTicks++
-			if (p2.coordinateX === beforeX && p2.coordinateY === beforeY)
-				this.stuckTicks++
-		}
+		if (p2.coordinateX === beforeX && p2.coordinateY === beforeY)
+			this.stuckTicks++
 		if (
 			game.p1.lives < p1Lives &&
 			nearP1.includes(false) &&

@@ -34,9 +34,10 @@ export const createMemory = (): AiMemory => ({
 	dangerKey: null,
 	lastX: -1,
 	lastY: -1,
-	lastMove: null,
-	stuckFrames: 0,
-	stuckRecoveries: 0,
+	commitDir: null,
+	commitTicks: 0,
+	noProgressTicks: 0,
+	baseAlertTicks: 0,
 	playerTrack: [],
 	lastTargetId: null,
 })

@@ -14,9 +14,53 @@ const distance = (x1: number, y1: number, x2: number, y2: number) =>
 	Math.hypot(x1 - x2, y1 - y2)
 
 const BASE_DEFENSE_LINE_MULTIPLIER = 1.4
+const BASE_ALERT_RADIUS_MULTIPLIER = 1.5
+const BASE_ALERT_AI_DISTANCE = 120
+const BASE_ALERT_SCORE = 1
 
 const enemyById = (snapshot: AiSnapshot, id: string) =>
 	snapshot.enemies.find((enemy) => enemy.id === id)
+
+// A rush on the flag overrides the normal goal weights while the AI is away:
+// one or more enemies inside the alert ring mean "come home". The ring is
+// wide (baseDangerRadius * 1.5), so camping while home starved the AI of
+// kills; the guard duty itself is defendGoal's job once it is back.
+export const baseAlertEnemy = (
+	snapshot: AiSnapshot,
+	features: AiTierFeatures
+): AiSnapshot['enemies'][number] | null => {
+	if (
+		distance(snapshot.ai.x, snapshot.ai.y, FLAG_X, FLAG_Y) <=
+		BASE_ALERT_AI_DISTANCE
+	)
+		return null
+
+	const radius = features.baseDangerRadius * BASE_ALERT_RADIUS_MULTIPLIER
+	let nearest: AiSnapshot['enemies'][number] | null = null
+	let nearestDistance = Infinity
+	for (const enemy of snapshot.enemies) {
+		const distToBase = distance(enemy.x, enemy.y, FLAG_X, FLAG_Y)
+		if (distToBase > radius || distToBase >= nearestDistance) continue
+		nearestDistance = distToBase
+		nearest = enemy
+	}
+
+	return nearest
+}
+
+const alertDefendGoal = (
+	snapshot: AiSnapshot,
+	features: AiTierFeatures
+): { goal: AiGoal; score: number; alert: true } | null => {
+	const enemy = baseAlertEnemy(snapshot, features)
+	if (!enemy) return null
+
+	return {
+		goal: { kind: 'defend', x: FLAG_X, y: GUARD_Y, enemyId: enemy.id },
+		score: BASE_ALERT_SCORE,
+		alert: true,
+	}
+}
 
 export const isGoalValid = (goal: AiGoal, snapshot: AiSnapshot) => {
 	if (goal.enemyId && !snapshot.enemies.some((e) => e.id === goal.enemyId))
@@ -309,15 +353,28 @@ export const selectGoal = (
 	memory: AiMemory
 ): AiGoal | null => {
 	const candidates = [
+		alertDefendGoal(snapshot, features),
 		defendGoal(snapshot, threats, features),
 		engageGoal(snapshot, features),
 		collectGoal(snapshot, features, threats),
 		supportGoal(snapshot, features),
 		retreatGoal(snapshot, features, role),
 		patrolGoal(snapshot, role),
-	].filter((candidate): candidate is { goal: AiGoal; score: number } =>
-		Boolean(candidate)
+	].filter(
+		(
+			candidate
+		): candidate is { goal: AiGoal; score: number; alert?: true } =>
+			Boolean(candidate)
 	)
+
+	const alert = candidates.find((candidate) => candidate.alert)
+	if (alert) {
+		// score 0: never let goal memory outlive the alert
+		memory.goalScore = 0
+		if (alert.goal.enemyId) memory.lastTargetId = alert.goal.enemyId
+
+		return alert.goal
+	}
 
 	const best = candidates
 		.map((candidate) => ({

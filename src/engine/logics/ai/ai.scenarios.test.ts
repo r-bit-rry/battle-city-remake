@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GameObject } from '../../instances'
+import { isEnemy } from '../../utils'
 import { gameFrame } from '../index'
 import { aiFrameLogic, getAiMemory } from '../ai.logic'
 import { makeAiGame, makeEnemy } from './ai.test-utils'
@@ -127,5 +128,68 @@ describe('AI ally scenarios', () => {
 		aiFrameLogic(game)
 
 		expect(getAiMemory(game)?.goal?.kind).toBe('retreat')
+	})
+
+	it('never fires down a clear lane through the other player', () => {
+		seedRandom(5)
+		const game = makeAiGame('elite')
+		game.levelChangeAnimation = 0
+		game.p2!.coordinateX = 103
+		game.p2!.coordinateY = 100
+		game.p2!.direction = 'TOP'
+		game.p1.coordinateX = 103
+		game.p1.coordinateY = 112
+		game.enemies = [makeEnemy(103, 232)]
+		game.objects = []
+
+		for (let i = 0; i < 3; i++) gameFrame(game)
+
+		expect(
+			game.bullets.filter((bullet) => !isEnemy(bullet.shooter))
+		).toHaveLength(0)
+	})
+
+	it('snipes an aligned enemy 120 px away, beyond engage range', () => {
+		seedRandom(13)
+		const game = makeAiGame('elite')
+		game.levelChangeAnimation = 0
+		game.p2!.coordinateX = 103
+		game.p2!.coordinateY = 100
+		game.p2!.direction = 'TOP'
+		game.p1.coordinateX = 40
+		game.p1.coordinateY = 40
+		game.enemies = [makeEnemy(103, 220)]
+		game.objects = []
+
+		for (let i = 0; i < 3; i++) gameFrame(game)
+
+		expect(game.bullets.some((bullet) => !isEnemy(bullet.shooter))).toBe(
+			true
+		)
+	})
+
+	it('rallies to the flag for every tier and role when two enemies reach it', () => {
+		const tiers = ['beginner', 'intermediate', 'pro', 'elite'] as const
+		const roles = ['guardian', 'wingman', 'hunter'] as const
+
+		for (const tier of tiers) {
+			for (const role of roles) {
+				const game = makeAiGame(tier, role)
+				game.levelChangeAnimation = 0
+				game.p1.coordinateX = 40
+				game.p1.coordinateY = 150
+				game.p2!.coordinateX = 160
+				game.p2!.coordinateY = 120
+				game.enemies = [makeEnemy(103, 40), makeEnemy(120, 40)]
+				game.objects = []
+
+				aiFrameLogic(game)
+
+				const goal = getAiMemory(game)?.goal
+				expect(goal?.kind, `${tier}:${role}`).toBe('defend')
+				expect(goal?.x, `${tier}:${role}`).toBe(103)
+				expect(goal?.y, `${tier}:${role}`).toBe(31)
+			}
+		}
 	})
 })

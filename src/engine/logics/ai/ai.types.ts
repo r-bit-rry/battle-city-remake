@@ -152,9 +152,13 @@ export interface AiMemory {
 	dangerKey: string | null
 	lastX: number
 	lastY: number
-	lastMove: TypeDirection | null
-	stuckFrames: number
-	stuckRecoveries: number
+	/** Heading the AI keeps steering down before it re-decides a turn. */
+	commitDir: TypeDirection | null
+	commitTicks: number
+	/** Consecutive frames the tank's position did not change. */
+	noProgressTicks: number
+	/** Consecutive frames the flag has been exposed to a base rush. */
+	baseAlertTicks: number
 	playerTrack: { x: number; y: number }[]
 	lastTargetId: string | null
 }

@@ -1,16 +1,22 @@
 import { Game } from '../instances'
-import { BusyCoordinates, TypeDirection } from '../types'
+import { BusyCoordinates } from '../types'
 import { isPlayerCanMove, isPlayerDead } from '../utils'
 import { AI_ROLE_PROFILES, AI_TIER_FEATURES } from './ai/ai.profiles'
 import { buildSnapshot, createMemory } from './ai/ai.perception'
 import { buildDangerMap, computeThreats } from './ai/ai.threat'
 import { findPath } from './ai/ai.path'
-import { selectGoal } from './ai/ai.brain'
-import { ALL_DIRECTIONS, canStep, decideTactics } from './ai/ai.tactics'
+import { selectGoal, baseAlertEnemy } from './ai/ai.brain'
+import {
+	ALL_DIRECTIONS,
+	canStep,
+	COMMIT_TICKS,
+	decideTactics,
+} from './ai/ai.tactics'
 import { AiMemory, AiSnapshot, DangerMap } from './ai/ai.types'
 
 const states = new WeakMap<Game, AiMemory>()
-const STUCK_FRAME_LIMIT = 6
+const NO_PROGRESS_SIDESTEP = 4
+const NO_PROGRESS_GOAL = 12
 const DANGER_REFRESH_FRAMES = 3
 
 // everything buildDangerMap reads, so an unchanged key means an identical map
@@ -84,11 +90,21 @@ export const aiFrameLogic = (game: Game) => {
 		memory.path = null
 		memory.pathSignature = null
 		memory.cooldown = 0
+		memory.commitDir = null
+		memory.commitTicks = 0
 	}
 
 	if (memory.cooldown <= 0 || !memory.goal) {
 		const threats = computeThreats(snapshot)
+		const previous = memory.goal
 		memory.goal = selectGoal(snapshot, threats, features, role, memory)
+		if (
+			previous?.kind !== memory.goal?.kind ||
+			previous?.enemyId !== memory.goal?.enemyId
+		) {
+			memory.commitDir = null
+			memory.commitTicks = 0
+		}
 		memory.cooldown = features.decisionInterval
 		memory.path = null
 		memory.pathSignature = null
@@ -141,36 +157,37 @@ export const aiFrameLogic = (game: Game) => {
 	controls.move = decision.move
 	controls.fire = decision.fire
 
+	// Pure position comparison: a tank that alternates directions never moves,
+	// so its facing is not evidence of progress.
 	const moved =
 		p2.coordinateX !== memory.lastX || p2.coordinateY !== memory.lastY
-	if (
-		!moved &&
-		memory.lastMove !== null &&
-		p2.direction === memory.lastMove
-	) {
-		memory.stuckFrames++
-	} else {
-		memory.stuckFrames = 0
-		memory.stuckRecoveries = 0
-	}
+	memory.noProgressTicks = moved ? 0 : memory.noProgressTicks + 1
+	memory.baseAlertTicks = baseAlertEnemy(snapshot, features)
+		? memory.baseAlertTicks + 1
+		: 0
 
-	if (memory.stuckFrames > STUCK_FRAME_LIMIT) {
-		memory.stuckFrames = 0
-		memory.stuckRecoveries++
+	if (memory.noProgressTicks >= NO_PROGRESS_GOAL) {
+		memory.noProgressTicks = 0
+		memory.goal = null
+		memory.cooldown = 0
 		memory.path = null
-		if (memory.stuckRecoveries >= 2) {
-			memory.stuckRecoveries = 0
-			memory.goal = null
-			memory.cooldown = 0
-		} else {
-			const sidestep = ALL_DIRECTIONS.find((direction: TypeDirection) =>
+		memory.pathSignature = null
+		memory.commitDir = null
+		memory.commitTicks = 0
+	} else if (memory.noProgressTicks === NO_PROGRESS_SIDESTEP) {
+		memory.path = null
+		const sidestep = ALL_DIRECTIONS.find(
+			(direction) =>
+				direction !== memory.commitDir &&
 				canStep(snapshot.ai, direction, busy)
-			)
-			if (sidestep) controls.move = sidestep
+		)
+		if (sidestep) {
+			controls.move = sidestep
+			memory.commitDir = sidestep
+			memory.commitTicks = COMMIT_TICKS
 		}
 	}
 
 	memory.lastX = p2.coordinateX
 	memory.lastY = p2.coordinateY
-	memory.lastMove = controls.move
 }
