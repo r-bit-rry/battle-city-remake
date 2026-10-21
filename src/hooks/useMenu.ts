@@ -72,13 +72,17 @@ export const useMenu = () => {
 		menuStates(gameSettings, lobbyId, searchingLobbyId, aiLevel, aiRole)
 
 	const playMenuSound = useCallback(() => {
-		const sound = new Audio(`/audio/${soundPack}/menu.ogg`)
+		const sound = new Audio(
+			`${import.meta.env.BASE_URL}audio/${soundPack}/menu.ogg`
+		)
 		sound.volume = 0.3
 		sound.play()
 	}, [soundPack])
 
 	const playChooseSound = useCallback(() => {
-		const sound = new Audio(`/audio/${soundPack}/shoot.ogg`)
+		const sound = new Audio(
+			`${import.meta.env.BASE_URL}audio/${soundPack}/shoot.ogg`
+		)
 		sound.volume = 0.3
 		sound.play()
 	}, [soundPack])

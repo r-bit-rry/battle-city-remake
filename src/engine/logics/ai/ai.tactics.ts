@@ -20,6 +20,7 @@ export const ALL_DIRECTIONS: TypeDirection[] = [
 ]
 
 const WAYPOINT_REACHED_DISTANCE = 8
+const HIT_BAND = 8
 
 const distance = (x1: number, y1: number, x2: number, y2: number) =>
 	Math.hypot(x1 - x2, y1 - y2)
@@ -115,7 +116,7 @@ const shotPathClear = (
 		direction === 'TOP' || direction === 'BOTTOM'
 			? Math.abs(target.y - ai.y)
 			: Math.abs(target.x - ai.x)
-	const maxDistance = Math.min(distanceToTarget, 64)
+	const maxDistance = Math.min(distanceToTarget, 140)
 
 	for (let step = 9; step <= maxDistance; step += 4) {
 		const point = stepPosition(ai.x, ai.y, direction, step)
@@ -164,6 +165,41 @@ const leadTarget = (
 	const lead = Math.min(enemy.speed * travel, 16)
 
 	return advance(enemy.x, enemy.y, enemy.direction, lead)
+}
+
+const meleeAim = (
+	ai: AiSnapshot['ai'],
+	enemy: AiSnapshot['enemies'][number]
+): TypeDirection => {
+	const dx = enemy.x - ai.x
+	const dy = enemy.y - ai.y
+	if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 'RIGHT' : 'LEFT'
+	if (Math.abs(dy) > Math.abs(dx)) return dy > 0 ? 'TOP' : 'BOTTOM'
+
+	return ai.direction
+}
+
+const resolveAim = (
+	ai: AiSnapshot['ai'],
+	enemy: AiSnapshot['enemies'][number],
+	features: AiTierFeatures,
+	tolerance: number
+) => {
+	let rawAim = firingDirection(ai, enemy, tolerance)
+	if (
+		!rawAim &&
+		Math.abs(enemy.x - ai.x) <= tolerance &&
+		Math.abs(enemy.y - ai.y) <= tolerance
+	)
+		rawAim = meleeAim(ai, enemy)
+	if (!features.aimLead) return { aim: rawAim, target: enemy }
+
+	const leadPoint = leadTarget(ai, enemy, features)
+	const leadAim = firingDirection(ai, leadPoint, tolerance)
+	if (rawAim && leadAim === rawAim) return { aim: rawAim, target: leadPoint }
+	if (!rawAim && leadAim) return { aim: leadAim, target: leadPoint }
+
+	return { aim: rawAim, target: enemy }
 }
 
 const adjacentBrick = (
@@ -232,7 +268,6 @@ export const decideTactics = (
 	busy: BusyCoordinates[]
 ): AiDecision => {
 	const ai = snapshot.ai
-	const hold: AiDecision = { move: null, fire: false }
 
 	if (features.dodgeHorizon > 0) {
 		const incoming = findIncomingBullet(snapshot, features.dodgeHorizon)
@@ -305,27 +340,76 @@ export const decideTactics = (
 		}
 	}
 
-	if (goal?.enemyId) {
-		const enemy = snapshot.enemies.find((e) => e.id === goal.enemyId)
-		if (enemy) {
-			const target = leadTarget(ai, enemy, features)
-			const tolerance =
-				features.aimTolerance + Math.random() * features.aimJitter
-			const aim = firingDirection(ai, target, tolerance)
-			const dist = distance(ai.x, ai.y, target.x, target.y)
-			if (aim && dist <= features.engageRange) {
-				if (ai.direction !== aim) return { move: aim, fire: false }
-				if (
-					memory.fireCooldown <= 0 &&
-					ai.availableBullets > 0 &&
-					!friendInLine(ai, aim, snapshot.player) &&
-					shotPathClear(ai, aim, target, snapshot)
-				) {
-					memory.fireCooldown = features.fireCooldown
+	const tolerance =
+		Math.max(HIT_BAND, features.aimTolerance) +
+		Math.random() * features.aimJitter
+	const candidates = snapshot.enemies
+		.filter(
+			(enemy) =>
+				distance(ai.x, ai.y, enemy.x, enemy.y) <= features.engageRange
+		)
+		.sort((a, b) => {
+			const aGoal = a.id === goal?.enemyId ? 0 : 1
+			const bGoal = b.id === goal?.enemyId ? 0 : 1
+			if (aGoal !== bGoal) return aGoal - bGoal
 
-					return { move: null, fire: true }
-				}
-			}
+			return (
+				distance(ai.x, ai.y, a.x, a.y) - distance(ai.x, ai.y, b.x, b.y)
+			)
+		})
+
+	for (const enemy of candidates) {
+		const { aim, target } = resolveAim(ai, enemy, features, tolerance)
+		if (!aim) continue
+		if (ai.direction !== aim) {
+			if (
+				enemy.id === goal?.enemyId &&
+				memory.fireCooldown <= 0 &&
+				ai.availableBullets > 0
+			)
+				return { move: aim, fire: false }
+
+			continue
+		}
+		if (
+			friendInLine(ai, aim, snapshot.player) ||
+			!shotPathClear(ai, aim, target, snapshot)
+		)
+			continue
+		if (memory.fireCooldown <= 0 && ai.availableBullets > 0) {
+			memory.fireCooldown = features.fireCooldown
+
+			return { move: null, fire: true }
+		}
+
+		break
+	}
+
+	const nearest = candidates[0]
+	if (nearest && (features.pathfinding === 'greedy' || !path)) {
+		const dx = nearest.x - ai.x
+		const dy = nearest.y - ai.y
+		if (Math.abs(dx) > HIT_BAND && Math.abs(dy) > HIT_BAND) {
+			const movingVertically =
+				nearest.direction === 'TOP' || nearest.direction === 'BOTTOM'
+			const primary: TypeDirection = movingVertically
+				? dx > 0
+					? 'RIGHT'
+					: 'LEFT'
+				: dy > 0
+					? 'TOP'
+					: 'BOTTOM'
+			const secondary: TypeDirection = movingVertically
+				? dy > 0
+					? 'TOP'
+					: 'BOTTOM'
+				: dx > 0
+					? 'RIGHT'
+					: 'LEFT'
+			const step = [primary, secondary].find((direction) =>
+				canStep(ai, direction, busy)
+			)
+			if (step) return { move: step, fire: false }
 		}
 	}
 
@@ -347,12 +431,12 @@ export const decideTactics = (
 		}
 	}
 
-	if (!goal) return hold
+	if (!goal) return { move: null, fire: false }
 	if (
 		!goal.enemyId &&
 		distance(ai.x, ai.y, goal.x, goal.y) <= WAYPOINT_REACHED_DISTANCE
 	)
-		return hold
+		return { move: null, fire: false }
 
 	let direction: TypeDirection | null = null
 	if (features.pathfinding !== 'greedy' && path) {

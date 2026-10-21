@@ -33,15 +33,15 @@ export const useAudio = (
 		if (!settings) return
 
 		playerMoveSound.current = createAudioElement(
-			`/audio/${settings.soundPack}/player_move.ogg`,
+			`${import.meta.env.BASE_URL}audio/${settings.soundPack}/player_move.ogg`,
 			0.06
 		)
 		enemyMoveSound.current = createAudioElement(
-			`/audio/${settings.soundPack}/enemy_move.ogg`,
+			`${import.meta.env.BASE_URL}audio/${settings.soundPack}/enemy_move.ogg`,
 			0.06
 		)
 		marioThemeSound.current = createAudioElement(
-			`/audio/mario/theme.ogg`,
+			`${import.meta.env.BASE_URL}audio/mario/theme.ogg`,
 			0.1
 		)
 
@@ -97,7 +97,7 @@ export const useAudio = (
 				activeSounds[sound] = true
 				setTimeout(() => (activeSounds[sound] = false), 50)
 				const audio = new Audio(
-					`/audio/${settings.soundPack}/${sound}.ogg`
+					`${import.meta.env.BASE_URL}audio/${settings.soundPack}/${sound}.ogg`
 				)
 				audio.volume = 0.5
 				audio.play()

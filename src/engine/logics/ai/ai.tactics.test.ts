@@ -179,3 +179,100 @@ describe('decideTactics', () => {
 		expect(cooling.fire).toBe(false)
 	})
 })
+
+describe('combat firing', () => {
+	const withEnemy = (
+		x: number,
+		y: number,
+		type: 'NORMAL' | 'SPEEDY' = 'NORMAL'
+	) => {
+		const game = makeAiGame()
+		game.p1.coordinateX = 40
+		game.p1.coordinateY = 40
+		game.p2!.coordinateX = 100
+		game.p2!.coordinateY = 100
+		game.p2!.direction = 'TOP'
+		game.enemies = [makeEnemy(x, y, type)]
+
+		return game
+	}
+
+	it('fires at an enemy one lane over', () => {
+		const game = withEnemy(108, 140)
+		const random = vi.spyOn(Math, 'random').mockReturnValue(0)
+
+		const decision = decide(game)
+
+		expect(decision.fire).toBe(true)
+		random.mockRestore()
+	})
+
+	it('fires while the goal is positional', () => {
+		const game = withEnemy(100, 140)
+		const random = vi.spyOn(Math, 'random').mockReturnValue(0)
+
+		const decision = decide(game, { kind: 'patrol', x: 200, y: 200 })
+
+		expect(decision.fire).toBe(true)
+		random.mockRestore()
+	})
+
+	it('does not let the lead point block a fireable line', () => {
+		const game = withEnemy(100, 140, 'SPEEDY')
+		game.enemies[0].direction = 'RIGHT'
+		const random = vi.spyOn(Math, 'random').mockReturnValue(0)
+
+		const decision = decide(game)
+
+		expect(decision.fire).toBe(true)
+		random.mockRestore()
+	})
+
+	it('aligns toward the enemy when diagonal and in range', () => {
+		const game = withEnemy(60, 64)
+		const random = vi.spyOn(Math, 'random').mockReturnValue(0)
+
+		const decision = decide(game)
+
+		expect(decision.move).toBe('LEFT')
+		expect(decision.fire).toBe(false)
+		random.mockRestore()
+	})
+
+	it('fires at a point-blank enemy', () => {
+		const game = withEnemy(104, 104)
+		const random = vi.spyOn(Math, 'random').mockReturnValue(0)
+
+		const decision = decide(game)
+
+		expect(decision.fire).toBe(true)
+		random.mockRestore()
+	})
+
+	it('fires at a mid-range aligned enemy', () => {
+		const game = withEnemy(100, 160)
+		const random = vi.spyOn(Math, 'random').mockReturnValue(0)
+
+		const decision = decide(game)
+
+		expect(decision.fire).toBe(true)
+		random.mockRestore()
+	})
+
+	it('keeps moving while the fire cooldown runs', () => {
+		const game = withEnemy(100, 140)
+		const memory = { ...createMemory(), fireCooldown: 5 }
+		const random = vi.spyOn(Math, 'random').mockReturnValue(0)
+
+		const decision = decide(
+			game,
+			{ kind: 'patrol', x: 200, y: 200 },
+			null,
+			memory
+		)
+
+		expect(decision.move).not.toBeNull()
+		expect(decision.fire).toBe(false)
+		random.mockRestore()
+	})
+})

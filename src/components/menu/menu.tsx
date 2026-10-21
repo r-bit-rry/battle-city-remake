@@ -49,7 +49,7 @@ export const Menu = () => {
 		>
 			<img
 				className={s.background}
-				src="/img/main_menu.png"
+				src={`${import.meta.env.BASE_URL}img/main_menu.png`}
 				alt="main_menu"
 			/>
 			<div className={s.buttons_wrapper}>
