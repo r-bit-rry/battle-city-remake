@@ -115,6 +115,10 @@ export interface AiSnapshot {
 	bullets: AiBulletSnapshot[]
 	bonuses: AiBonusSnapshot[]
 	obstacles: AiObstacleSnapshot[]
+	/** 32x32 cells of 8 px: 0 free, 1 brick, 2 solid, 3 flag (solid but ignorable). */
+	blocked: Uint8Array
+	/** 1-based index into `obstacles` per blocked cell, 0 = none. */
+	blockedOwner: Uint16Array
 	base: { x: number; y: number; alive: boolean }
 	mapSignature: string
 	playerIntent: PlayerIntent
@@ -128,7 +132,8 @@ export interface Threat {
 }
 
 export interface DangerMap {
-	cells: Map<string, number>
+	/** frame until a lane cell is hit, keyed by `yi * LANE_COUNT + xi` */
+	cells: Map<number, number>
 }
 
 export interface LanePath {
@@ -143,6 +148,8 @@ export interface AiMemory {
 	fireCooldown: number
 	path: LanePath | null
 	pathSignature: string | null
+	danger: DangerMap | null
+	dangerKey: string | null
 	lastX: number
 	lastY: number
 	lastMove: TypeDirection | null

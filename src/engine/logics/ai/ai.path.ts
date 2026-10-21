@@ -16,11 +16,6 @@ export interface PathOptions {
 	ignoreId?: string
 }
 
-interface CellInfo {
-	cost: number
-	brick: boolean
-}
-
 const GRID_FREE = 0
 const GRID_BRICK = 1
 const GRID_BLOCKED = 2
@@ -29,7 +24,7 @@ const TANK_REACH = 14
 const OBSTACLE_MIN_REACH = 7
 const OBSTACLE_MAX_REACH = 14
 
-const nearestLaneIndex = (value: number) => {
+export const nearestLaneIndex = (value: number) => {
 	let best = 0
 	for (let i = 1; i < LANE_COUNT; i++) {
 		if (Math.abs(LANES[i] - value) < Math.abs(LANES[best] - value)) best = i
@@ -86,7 +81,7 @@ const markBlocked = (
 }
 
 const buildGrid = (busy: BusyCoordinates[], ignoreId?: string) => {
-	const grid = new Uint8Array(LANE_COUNT * LANE_COUNT)
+	grid.fill(GRID_FREE)
 	for (const object of busy) {
 		if (object.id === ignoreId) continue
 
@@ -110,36 +105,38 @@ const buildGrid = (busy: BusyCoordinates[], ignoreId?: string) => {
 			)
 		}
 	}
-
-	return grid
 }
 
-const cellInfo = (
-	xi: number,
-	yi: number,
-	grid: Uint8Array,
-	options: PathOptions
-): CellInfo | null => {
+// readCell results; out-params keep the search allocation free
+let cellCost = 0
+let cellIsBrick = false
+
+const readCell = (xi: number, yi: number, options: PathOptions): boolean => {
 	const x = LANES[xi]
 	const y = LANES[yi]
-	if (x < 7 || x > 200 || y < 7 || y > 200) return null
+	if (x < 7 || x > 200 || y < 7 || y > 200) return false
 
 	const value = grid[yi * LANE_COUNT + xi]
-	if (value === GRID_BLOCKED) return null
+	if (value === GRID_BLOCKED) return false
 	if (value === GRID_BRICK) {
-		if (!options.allowBrick) return null
+		if (!options.allowBrick) return false
 
-		return { cost: 3, brick: true }
+		cellCost = 3
+		cellIsBrick = true
+
+		return true
 	}
 
 	let cost = 1
-	const frame = options.danger?.cells.get(`${x},${y}`)
+	const frame = options.danger?.cells.get(yi * LANE_COUNT + xi)
 	if (frame !== undefined && options.dangerPenalty) {
 		const horizon = options.dangerHorizon ?? 30
 		cost += options.dangerPenalty * Math.max(0, 1 - frame / horizon)
 	}
+	cellCost = cost
+	cellIsBrick = false
 
-	return { cost, brick: false }
+	return true
 }
 
 const heuristic = (a: number, b: number) => {
@@ -151,57 +148,70 @@ const heuristic = (a: number, b: number) => {
 	return (Math.abs(ax - bx) + Math.abs(ay - by)) / 8
 }
 
-class MinHeap {
-	private items: { node: number; priority: number }[] = []
+// shortcut: module-scope scratch, so findPath must not be re-entered. It is
+// never recursive and the engine is single threaded.
+const total = LANE_COUNT * LANE_COUNT
+const grid = new Uint8Array(total)
+const cost = new Float64Array(total)
+const parents = new Int32Array(total)
+const closed = new Uint8Array(total)
+// a cell is relaxed at most once per incoming edge, so 4 * total pushes at most
+const HEAP_LIMIT = total * 4
+const heapPriority = new Float64Array(HEAP_LIMIT)
+const heapNode = new Int32Array(HEAP_LIMIT)
+let heapSize = 0
 
-	get size() {
-		return this.items.length
+const heapPush = (node: number, priority: number) => {
+	if (heapSize >= HEAP_LIMIT) return
+
+	let index = heapSize++
+	heapNode[index] = node
+	heapPriority[index] = priority
+	while (index > 0) {
+		const parent = (index - 1) >> 1
+		if (heapPriority[parent] <= heapPriority[index]) break
+
+		const parentNode = heapNode[parent]
+		const parentPriority = heapPriority[parent]
+		heapNode[parent] = heapNode[index]
+		heapPriority[parent] = heapPriority[index]
+		heapNode[index] = parentNode
+		heapPriority[index] = parentPriority
+		index = parent
 	}
+}
 
-	push(node: number, priority: number) {
-		const items = this.items
-		items.push({ node, priority })
-		let index = items.length - 1
-		while (index > 0) {
-			const parent = (index - 1) >> 1
-			if (items[parent].priority <= items[index].priority) break
-			;[items[parent], items[index]] = [items[index], items[parent]]
-			index = parent
+const heapPop = () => {
+	const top = heapNode[0]
+	heapSize--
+	if (heapSize > 0) {
+		heapNode[0] = heapNode[heapSize]
+		heapPriority[0] = heapPriority[heapSize]
+		let index = 0
+		for (;;) {
+			const left = index * 2 + 1
+			const right = left + 1
+			let smallest = index
+			if (left < heapSize && heapPriority[left] < heapPriority[smallest])
+				smallest = left
+			if (
+				right < heapSize &&
+				heapPriority[right] < heapPriority[smallest]
+			)
+				smallest = right
+			if (smallest === index) break
+
+			const smallestNode = heapNode[smallest]
+			const smallestPriority = heapPriority[smallest]
+			heapNode[smallest] = heapNode[index]
+			heapPriority[smallest] = heapPriority[index]
+			heapNode[index] = smallestNode
+			heapPriority[index] = smallestPriority
+			index = smallest
 		}
 	}
 
-	pop() {
-		const items = this.items
-		const top = items[0]
-		const last = items.pop() as { node: number; priority: number }
-		if (items.length) {
-			items[0] = last
-			let index = 0
-			for (;;) {
-				const left = index * 2 + 1
-				const right = left + 1
-				let smallest = index
-				if (
-					left < items.length &&
-					items[left].priority < items[smallest].priority
-				)
-					smallest = left
-				if (
-					right < items.length &&
-					items[right].priority < items[smallest].priority
-				)
-					smallest = right
-				if (smallest === index) break
-				;[items[smallest], items[index]] = [
-					items[index],
-					items[smallest],
-				]
-				index = smallest
-			}
-		}
-
-		return top.node
-	}
+	return top
 }
 
 const NEIGHBORS = [
@@ -225,18 +235,17 @@ export const findPath = (
 		nearestLaneIndex(targetY) * LANE_COUNT + nearestLaneIndex(targetX)
 	if (startIndex === goalIndex) return { waypoints: [], brick: null }
 
-	const grid = buildGrid(busy, options.ignoreId)
-	const total = LANE_COUNT * LANE_COUNT
-	const cost = new Float64Array(total).fill(Infinity)
-	const parents = new Int32Array(total).fill(-1)
-	const closed = new Uint8Array(total)
-	const open = new MinHeap()
+	buildGrid(busy, options.ignoreId)
+	cost.fill(Infinity)
+	parents.fill(-1)
+	closed.fill(0)
+	heapSize = 0
 
 	cost[startIndex] = 0
-	open.push(startIndex, heuristic(startIndex, goalIndex))
+	heapPush(startIndex, heuristic(startIndex, goalIndex))
 
-	while (open.size) {
-		const current = open.pop()
+	while (heapSize) {
+		const current = heapPop()
 		if (closed[current]) continue
 		closed[current] = 1
 		if (current === goalIndex) break
@@ -251,14 +260,13 @@ export const findPath = (
 				continue
 
 			const next = ny * LANE_COUNT + nx
-			const info = cellInfo(nx, ny, grid, options)
-			if (!info) continue
+			if (!readCell(nx, ny, options)) continue
 
-			const tentative = cost[current] + info.cost
+			const tentative = cost[current] + cellCost
 			if (tentative < cost[next]) {
 				cost[next] = tentative
 				parents[next] = current
-				open.push(next, tentative + heuristic(next, goalIndex))
+				heapPush(next, tentative + heuristic(next, goalIndex))
 			}
 		}
 	}
@@ -281,8 +289,7 @@ export const findPath = (
 		while (cursor !== startIndex) {
 			const xi = cursor % LANE_COUNT
 			const yi = (cursor - xi) / LANE_COUNT
-			const info = cellInfo(xi, yi, grid, options)
-			if (info?.brick) {
+			if (readCell(xi, yi, options) && cellIsBrick) {
 				brick = { x: LANES[xi], y: LANES[yi] }
 				break
 			}

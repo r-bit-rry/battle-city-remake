@@ -68,4 +68,14 @@ describe('findPath', () => {
 			})
 		).not.toBeNull()
 	})
+
+	it('returns the same path on consecutive searches', () => {
+		const tank = makeEnemy(40, 40)
+		const wall = wallColumn(64, 0, 55)
+		const first = findPath(tank, 96, 40, wall, { allowBrick: true })
+		const second = findPath(tank, 96, 40, wall, { allowBrick: true })
+
+		expect(second).toEqual(first)
+		expect(second).not.toBe(first)
+	})
 })

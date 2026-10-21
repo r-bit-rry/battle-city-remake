@@ -17,6 +17,12 @@ export const FLAG_Y = 7
 export const GUARD_Y = 31
 export const PLAYER_TRACK_SIZE = 60
 
+export const BLOCK_CELLS = 32
+export const BLOCK_FREE = 0
+export const BLOCK_BRICK = 1
+export const BLOCK_SOLID = 2
+export const BLOCK_FLAG = 3
+
 export const createMemory = (): AiMemory => ({
 	goal: null,
 	goalScore: 0,
@@ -24,6 +30,8 @@ export const createMemory = (): AiMemory => ({
 	fireCooldown: 0,
 	path: null,
 	pathSignature: null,
+	danger: null,
+	dangerKey: null,
 	lastX: -1,
 	lastY: -1,
 	lastMove: null,
@@ -117,6 +125,22 @@ export const buildSnapshot = (game: Game, memory: AiMemory): AiSnapshot => {
 			flag: object.type === 'FLAG',
 		}))
 
+	// Obstacle origins are 8 px aligned (GameObject snaps to x * 8), so one cell
+	// per obstacle is enough for obstacleAt's four-probe lookup.
+	const blocked = new Uint8Array(BLOCK_CELLS * BLOCK_CELLS)
+	const blockedOwner = new Uint16Array(BLOCK_CELLS * BLOCK_CELLS)
+	for (let index = 0; index < obstacles.length; index++) {
+		const obstacle = obstacles[index]
+		if (!obstacle.blocksBullets) continue
+		const cell = (obstacle.y >> 3) * BLOCK_CELLS + (obstacle.x >> 3)
+		blocked[cell] = obstacle.flag
+			? BLOCK_FLAG
+			: obstacle.destructible
+				? BLOCK_BRICK
+				: BLOCK_SOLID
+		blockedOwner[cell] = index + 1
+	}
+
 	return {
 		ai: {
 			id: ai.id,
@@ -132,6 +156,8 @@ export const buildSnapshot = (game: Game, memory: AiMemory): AiSnapshot => {
 		bullets,
 		bonuses,
 		obstacles,
+		blocked,
+		blockedOwner,
 		base: { x: FLAG_X, y: FLAG_Y, alive: game.isFlagAlive },
 		mapSignature: mapSignature(game),
 		playerIntent: inferPlayerIntent(memory.playerTrack, player),

@@ -47,6 +47,27 @@ describe('buildSnapshot', () => {
 
 		expect(buildSnapshot(game, memory).mapSignature).not.toBe(before)
 	})
+
+	it('marks one cell per bullet-blocking obstacle', () => {
+		const game = makeAiGame()
+		game.objects = [
+			new GameObject('BRICK', 4, 4),
+			new GameObject('STONE', 5, 4),
+			new GameObject('WATER', 6, 4),
+			new GameObject('FLAG', 7, 4),
+		]
+
+		const snapshot = buildSnapshot(game, createMemory())
+		const cell = (tileX: number, tileY: number) =>
+			snapshot.blocked[tileY * 32 + tileX]
+
+		expect(snapshot.blocked).toHaveLength(32 * 32)
+		expect(cell(4, 4)).toBe(1)
+		expect(cell(5, 4)).toBe(2)
+		expect(cell(6, 4)).toBe(0)
+		expect(cell(7, 4)).toBe(3)
+		expect(cell(0, 0)).toBe(0)
+	})
 })
 
 describe('inferPlayerIntent', () => {

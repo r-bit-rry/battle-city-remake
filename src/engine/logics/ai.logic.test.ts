@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Bullet } from '../instances'
+import { Bullet, GameObject } from '../instances'
 import { gameFrame } from './index'
 import { aiFrameLogic, getAiMemory } from './ai.logic'
 import { makeAiGame, makeEnemy } from './ai/ai.test-utils'
@@ -93,5 +93,59 @@ describe('aiFrameLogic', () => {
 			expect(moved).toBe(true)
 			expect(game.p2!.lives).toBeGreaterThan(0)
 		}
+	})
+
+	// Path reuse across decision ticks was tried and reverted: decideTactics
+	// branches on path presence, so it changed moves (elite seed 7: 2651 -> 1131).
+	it('rebuilds the path on every decision tick', () => {
+		const game = makeAiGame()
+		game.p1.coordinateX = 100
+		game.p1.coordinateY = 100
+		game.p2!.coordinateX = 40
+		game.p2!.coordinateY = 40
+		game.enemies = [makeEnemy(40, 120)]
+
+		aiFrameLogic(game)
+		const path = getAiMemory(game)!.path
+		expect(path).not.toBeNull()
+
+		// long enough for a decision tick to re-select the same goal
+		for (let i = 0; i < 4; i++) aiFrameLogic(game)
+
+		expect(getAiMemory(game)!.path).not.toBe(path)
+	})
+
+	it('rebuilds the path when the map changes', () => {
+		const game = makeAiGame()
+		game.p1.coordinateX = 100
+		game.p1.coordinateY = 100
+		game.p2!.coordinateX = 40
+		game.p2!.coordinateY = 40
+		game.enemies = [makeEnemy(40, 120)]
+
+		aiFrameLogic(game)
+		const path = getAiMemory(game)!.path
+
+		game.objects = [new GameObject('BRICK', 12, 8)]
+		aiFrameLogic(game)
+
+		expect(getAiMemory(game)!.path).not.toBe(path)
+	})
+
+	it('reuses the danger map until the bullets move again', () => {
+		const game = makeAiGame()
+		game.p1.coordinateX = 100
+		game.p1.coordinateY = 100
+		game.p2!.coordinateX = 40
+		game.p2!.coordinateY = 40
+		game.enemies = [makeEnemy(40, 120)]
+
+		aiFrameLogic(game)
+		const danger = getAiMemory(game)!.danger
+		expect(getAiMemory(game)!.dangerKey).toBeTypeOf('string')
+
+		aiFrameLogic(game)
+
+		expect(getAiMemory(game)!.danger).toBe(danger)
 	})
 })
