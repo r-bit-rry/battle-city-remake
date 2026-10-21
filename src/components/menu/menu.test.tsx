@@ -71,6 +71,7 @@ describe('menu cursor alignment', () => {
 	beforeEach(() => {
 		setDesktopViewport()
 		mockLayout()
+		localStorage.clear()
 	})
 	afterEach(() => {
 		cleanup()
@@ -149,5 +150,92 @@ describe('menu cursor alignment', () => {
 		press('Enter')
 
 		expect(document.body.textContent).toContain('AI ROLE (HUNTER)')
+	})
+})
+
+describe('menu settings persistence', () => {
+	const SETTINGS_KEY = 'battle-city:settings:v1'
+
+	beforeEach(() => {
+		setDesktopViewport()
+		mockLayout()
+		localStorage.clear()
+	})
+	afterEach(() => {
+		cleanup()
+		vi.restoreAllMocks()
+	})
+
+	const openSettings = (press: (code: string) => void) => {
+		for (let i = 0; i < 4; i++) press('KeyS')
+		press('Enter')
+	}
+
+	const toggleHardcore = (press: (code: string) => void) => {
+		for (let i = 0; i < 6; i++) press('KeyS')
+		press('Enter')
+	}
+
+	it('keeps settings after the menu is unmounted and mounted again', () => {
+		const first = renderMenu()
+		openSettings(first.press)
+		toggleHardcore(first.press)
+		expect(document.body.textContent).toContain('HARDCORE (y)')
+
+		cleanup()
+
+		const second = renderMenu()
+		openSettings(second.press)
+		expect(document.body.textContent).toContain('HARDCORE (y)')
+	})
+
+	it('ignores invalid stored values', () => {
+		localStorage.setItem(
+			SETTINGS_KEY,
+			JSON.stringify({
+				soundPack: 'cd',
+				hardcore: 'yes',
+				friendlyFire: 1,
+				playerLevel: 7,
+				survivorRespawn: null,
+				aiLevel: 'god',
+				aiRole: 'solo',
+			})
+		)
+
+		const { press } = renderMenu()
+		openSettings(press)
+
+		expect(document.body.textContent).toContain('SOUND (default)')
+		expect(document.body.textContent).toContain('FRIENDLY FIRE (n)')
+		expect(document.body.textContent).toContain('PLAYER LEVEL (0)')
+		expect(document.body.textContent).toContain('AI LEVEL (0)')
+		expect(document.body.textContent).toContain('AI ROLE (WINGMAN)')
+		expect(document.body.textContent).toContain('AUTO RESPAWN (y)')
+		expect(document.body.textContent).toContain('HARDCORE (n)')
+	})
+
+	it('falls back to defaults when stored JSON is corrupt', () => {
+		localStorage.setItem(SETTINGS_KEY, '{not json')
+
+		const { press } = renderMenu()
+		openSettings(press)
+
+		expect(document.body.textContent).toContain('SOUND (default)')
+		expect(document.body.textContent).toContain('HARDCORE (n)')
+	})
+
+	it('still renders when localStorage throws', () => {
+		vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+			throw new Error('denied')
+		})
+		vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+			throw new Error('denied')
+		})
+
+		const { press } = renderMenu()
+		openSettings(press)
+
+		expect(document.body.textContent).toContain('SOUND (default)')
 	})
 })
