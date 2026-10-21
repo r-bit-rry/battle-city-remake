@@ -37,8 +37,9 @@ const average = (values: number[]) =>
 	values.reduce((sum, value) => sum + value, 0) / values.length
 
 describe.runIf(process.env.AI_BENCH === '1')('AI soak benchmarks', () => {
-	// still failing: beginner 2003 vs intermediate 1554 is a 449 gap, the
-	// assertion allows 400 (HEAD: 1497 vs 1005, a 492 gap)
+	// still failing after P4: elite (2306) is 1084 below pro (3390), the
+	// allowance is 400. P4 fixed the low pair (beginner 2003 vs intermediate
+	// 1721) but the breached-wall defend bonus costs the elite wingman kills.
 	it.fails('orders tiers by composite score', () => {
 		const tiers: TypeAiLevel[] = [
 			'beginner',
@@ -57,8 +58,10 @@ describe.runIf(process.env.AI_BENCH === '1')('AI soak benchmarks', () => {
 		}
 	})
 
-	// still failing: guardian seed 42 wedges against the flag wall and the base
-	// falls (pro path lane y=32 is not traversable at 15 px tank width)
+	// still failing after P4: the breached-wall alert relies on defending, and
+	// it makes the hunter come home too (guardian 0.56 < hunter 0.71 near-base),
+	// while pro seed 7 loses the base for both roles. The flag-wall alert and
+	// corridor tests show the wall is sealed and the guard lane is drivable.
 	it.fails(
 		'keeps the guardian closer to the base than the hunter while both keep it alive',
 		() => {

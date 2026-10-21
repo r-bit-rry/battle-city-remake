@@ -12,6 +12,7 @@ import {
 } from './ai.types'
 import { FLAG_X, FLAG_Y } from './ai.perception'
 import { advance, findIncomingBullet } from './ai.threat'
+import { chooseDrill } from './ai.terrain'
 
 export const ALL_DIRECTIONS: TypeDirection[] = [
 	'TOP',
@@ -533,21 +534,20 @@ const chooseTactics = (
 		}
 	}
 
-	if (path?.brick && features.brickDrilling && ai.availableBullets > 0) {
-		const direction = directionToWaypoint(ai, path.brick)
-		if (
-			direction &&
-			distance(ai.x, ai.y, path.brick.x, path.brick.y) <= 20 &&
-			adjacentBrick(snapshot, direction) &&
-			!friendInLine(ai, direction, snapshot.player) &&
-			memory.fireCooldown <= 0
-		) {
+	// Drill the brick that pays: the one with an enemy behind it, then the one
+	// that lines up with the goal. The commitment owns the heading, so only
+	// fire down a lane the tank already faces.
+	if (
+		features.brickDrilling &&
+		ai.availableBullets > 0 &&
+		memory.fireCooldown <= 0
+	) {
+		const drill = chooseDrill(snapshot, goal, features)
+		if (drill && ai.direction === drill.direction) {
 			memory.fireCooldown = features.fireCooldown
 			memory.path = null
 
-			return ai.direction === direction
-				? { move: null, fire: true }
-				: { move: direction, fire: false }
+			return { move: null, fire: true }
 		}
 	}
 

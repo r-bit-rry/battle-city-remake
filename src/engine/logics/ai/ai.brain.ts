@@ -9,6 +9,7 @@ import {
 } from './ai.types'
 import { FLAG_X, FLAG_Y, GUARD_Y } from './ai.perception'
 import { retreatLives } from './ai.profiles'
+import { flagWall } from './ai.terrain'
 
 const distance = (x1: number, y1: number, x2: number, y2: number) =>
 	Math.hypot(x1 - x2, y1 - y2)
@@ -112,6 +113,10 @@ const defendGoal = (
 	threats: Threat[],
 	features: AiTierFeatures
 ): { goal: AiGoal; score: number } | null => {
+	// An open flag wall is a base alert: nothing outbids coming home, because
+	// the next enemy bullet through the hole ends the game.
+	const breached = flagWall(snapshot).breached
+
 	for (const threat of threats) {
 		const enemy = enemyById(snapshot, threat.enemyId)
 		if (!enemy) continue
@@ -138,7 +143,7 @@ const defendGoal = (
 				y: target.y,
 				enemyId: enemy.id,
 			},
-			score: threat.score,
+			score: breached ? BASE_ALERT_SCORE : threat.score,
 		}
 	}
 
@@ -198,6 +203,19 @@ const engageGoal = (
 	}
 }
 
+const CONTESTED_BONUS_SHARE = 0.3
+const CONTESTED_BONUS_MARGIN = 12
+
+const nearestEnemyDistance = (snapshot: AiSnapshot, bonus: AiBonusSnapshot) => {
+	let nearest = Infinity
+	for (const enemy of snapshot.enemies) {
+		const dist = distance(enemy.x, enemy.y, bonus.x, bonus.y)
+		if (dist < nearest) nearest = dist
+	}
+
+	return nearest
+}
+
 const collectGoal = (
 	snapshot: AiSnapshot,
 	features: AiTierFeatures,
@@ -206,15 +224,23 @@ const collectGoal = (
 	if (features.bonusLogic === 'none') return null
 
 	const valued = snapshot.bonuses
-		.filter(
-			(bonus) =>
-				!snapshot.enemies.some(
-					(enemy) =>
-						distance(enemy.x, enemy.y, bonus.x, bonus.y) <= 40
-				)
-		)
 		.map((bonus) => {
 			let value = bonusValue(snapshot, bonus, features, threats)
+			const aiDistance = distance(
+				snapshot.ai.x,
+				snapshot.ai.y,
+				bonus.x,
+				bonus.y
+			)
+			// An enemy that is clearly closer keeps the bonus in play at a
+			// fraction of its worth instead of dropping it: abandoning every
+			// contested pickup also abandoned the ones it could win.
+			if (
+				nearestEnemyDistance(snapshot, bonus) <=
+				aiDistance - CONTESTED_BONUS_MARGIN
+			)
+				value *= CONTESTED_BONUS_SHARE
+
 			if (
 				features.yieldBonuses &&
 				!snapshot.player.dead &&
@@ -223,25 +249,14 @@ const collectGoal = (
 					snapshot.player.y,
 					bonus.x,
 					bonus.y
-				) < distance(snapshot.ai.x, snapshot.ai.y, bonus.x, bonus.y)
+				) < aiDistance
 			)
 				value = 0
 
 			return {
 				bonus,
 				value,
-				score:
-					value *
-					(1 -
-						Math.min(
-							1,
-							distance(
-								snapshot.ai.x,
-								snapshot.ai.y,
-								bonus.x,
-								bonus.y
-							) / 300
-						)),
+				score: value * (1 - Math.min(1, aiDistance / 300)),
 			}
 		})
 		.filter((candidate) => candidate.value > 0)

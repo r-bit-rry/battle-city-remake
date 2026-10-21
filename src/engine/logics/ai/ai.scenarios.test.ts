@@ -4,7 +4,7 @@ import { GameObject } from '../../instances'
 import { isEnemy } from '../../utils'
 import { gameFrame } from '../index'
 import { aiFrameLogic, getAiMemory } from '../ai.logic'
-import { makeAiGame, makeEnemy } from './ai.test-utils'
+import { makeAiGame, makeBonus, makeEnemy } from './ai.test-utils'
 
 const brickColumn = (tileX: number, fromTileY: number, toTileY: number) =>
 	Array.from(
@@ -166,6 +166,55 @@ describe('AI ally scenarios', () => {
 		expect(game.bullets.some((bullet) => !isEnemy(bullet.shooter))).toBe(
 			true
 		)
+	})
+
+	it('drills the brick that opens the lane to a walled enemy', () => {
+		seedRandom(17)
+		const game = makeAiGame('elite')
+		game.levelChangeAnimation = 0
+		game.p1.coordinateX = 40
+		game.p1.coordinateY = 200
+		game.p2!.coordinateX = 40
+		game.p2!.coordinateY = 40
+		game.enemies = [makeEnemy(88, 40)]
+		game.objects = [
+			new GameObject('BRICK', 8, 5),
+			new GameObject('BRICK', 8, 6),
+			new GameObject('BRICK', 8, 7),
+			new GameObject('STONE', 11, 6),
+		]
+		// pinned against the stone above it: a walled enemy, not a wandering one
+		const enemy = game.enemies[0]
+		enemy.nextMoves = { direction: 'TOP', repeat: 9999 }
+		enemy.availableBullets = 0
+		// keep a spare enemy queued so the level does not restart on the kill
+		game.enemyList = [{ type: 'NORMAL' }]
+		const enemyId = enemy.id
+		const laneBrick = game.objects[0]
+
+		for (let i = 0; i < 200; i++) gameFrame(game)
+
+		expect(game.objects).not.toContain(laneBrick)
+		expect(game.enemies.some((other) => other.id === enemyId)).toBe(false)
+	})
+
+	it('does not abandon a defend goal for a bonus an enemy is closer to', () => {
+		seedRandom(23)
+		const game = makeAiGame('intermediate', 'hunter')
+		game.levelChangeAnimation = 0
+		game.p1.coordinateX = 200
+		game.p1.coordinateY = 200
+		game.p2!.coordinateX = 103
+		game.p2!.coordinateY = 120
+		game.enemies = [makeEnemy(103, 0)]
+		game.bonuses = [makeBonus(103, 50)]
+		game.objects = []
+
+		aiFrameLogic(game)
+
+		// bonus 70 px away, enemy 20 px closer to it: contested, so it only
+		// keeps a 0.3 share and the defend goal stays
+		expect(getAiMemory(game)?.goal?.kind).toBe('defend')
 	})
 
 	it('rallies to the flag for every tier and role when two enemies reach it', () => {
