@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Bullet, GameObject } from '../instances'
 import { gameFrame } from './index'
 import { aiFrameLogic, getAiMemory } from './ai.logic'
+import { isCellDangerous } from './ai/ai.threat'
 import { makeAiGame, makeEnemy } from './ai/ai.test-utils'
 
 const seedRandom = (seedValue: number) => {
@@ -147,5 +148,30 @@ describe('aiFrameLogic', () => {
 		aiFrameLogic(game)
 
 		expect(getAiMemory(game)!.danger).toBe(danger)
+	})
+
+	it('rebuilds the danger map when a bullet moves', () => {
+		const game = makeAiGame()
+		game.p1.coordinateX = 100
+		game.p1.coordinateY = 100
+		game.p2!.coordinateX = 40
+		game.p2!.coordinateY = 40
+		game.enemies = [makeEnemy(40, 120)]
+		game.bullets = [new Bullet(24, 24, 'RIGHT', 'NORMAL', 'enemy-1')]
+
+		aiFrameLogic(game)
+		const memory = getAiMemory(game)!
+		const danger = memory.danger!
+		const dangerKey = memory.dangerKey
+		expect(isCellDangerous(danger, 40, 24, 45)).toBe(true)
+
+		game.bullets = [new Bullet(24, 40, 'RIGHT', 'NORMAL', 'enemy-1')]
+		aiFrameLogic(game)
+
+		// same cached Map, rebuilt contents
+		expect(memory.danger).toBe(danger)
+		expect(memory.dangerKey).not.toBe(dangerKey)
+		expect(isCellDangerous(danger, 40, 40, 45)).toBe(true)
+		expect(isCellDangerous(danger, 40, 24, 45)).toBe(false)
 	})
 })

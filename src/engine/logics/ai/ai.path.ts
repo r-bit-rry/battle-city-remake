@@ -155,8 +155,8 @@ const grid = new Uint8Array(total)
 const cost = new Float64Array(total)
 const parents = new Int32Array(total)
 const closed = new Uint8Array(total)
-// a cell is relaxed at most once per incoming edge, so 4 * total pushes at most
-const HEAP_LIMIT = total * 4
+// one start push plus at most one relaxation per incoming edge of every cell
+const HEAP_LIMIT = total * 4 + 1
 const heapPriority = new Float64Array(HEAP_LIMIT)
 const heapNode = new Int32Array(HEAP_LIMIT)
 let heapSize = 0

@@ -78,4 +78,20 @@ describe('findPath', () => {
 		expect(second).toEqual(first)
 		expect(second).not.toBe(first)
 	})
+
+	it('searches the whole grid without dropping frontier entries', () => {
+		// corner to corner on an empty board: expands almost every cell, so the
+		// frontier has to grow well past LANE_COUNT * LANE_COUNT entries
+		const path = findPath(
+			{ id: 'tank', coordinateX: 7, coordinateY: 7 },
+			200,
+			200,
+			[],
+			{ allowBrick: false }
+		)
+
+		expect(path).not.toBeNull()
+		expect(path!.waypoints).toHaveLength(98)
+		expect(path!.waypoints[97]).toEqual({ x: 200, y: 200 })
+	})
 })

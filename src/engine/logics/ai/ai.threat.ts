@@ -69,6 +69,8 @@ const obstacleInCell = (
 	if (value === BLOCK_FREE || (ignoreFlag && value === BLOCK_FLAG))
 		return undefined
 
+	// two obstacles can share a cell only if their boxes overlap; the later one
+	// in `obstacles` wins, which is safe because no caller reads the fields
 	return snapshot.obstacles[snapshot.blockedOwner[cell] - 1]
 }
 
@@ -78,13 +80,14 @@ export const obstacleAt = (
 	y: number,
 	ignoreFlag = false
 ): AiObstacleSnapshot | undefined => {
-	// A cell is marked at the obstacle origin, and the bullet box is 12 px wide,
-	// so a point can only reach the origin cell it sits in, one to its left when
-	// it starts the cell, or one to its right when it ends the cell.
-	const cx = x >> 3
-	const rx = x & 7
-	const cy = y >> 3
-	const ry = y & 7
+	// A cell holds the obstacle *origin*, and a point is inside the bullet box
+	// [ox-2, ox+9] when ox is in [x-9, x+2]. With x = 8cx+rx that window only
+	// reaches origin cell cx-1 when rx <= 1 and cx+1 when rx >= 6, so these
+	// four probes are exact for integer and fractional points alike.
+	const cx = Math.floor(x / 8)
+	const rx = x - cx * 8
+	const cy = Math.floor(y / 8)
+	const ry = y - cy * 8
 	const x0 = rx <= 1 ? cx - 1 : cx
 	const x1 = rx >= 6 ? cx + 1 : cx
 	const y0 = ry <= 1 ? cy - 1 : cy
