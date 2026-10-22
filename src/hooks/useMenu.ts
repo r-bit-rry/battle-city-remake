@@ -1,6 +1,6 @@
 import { AI_TIER_LABELS, GameSettings, TypeAiLevel, TypeAiRole } from '@/engine'
 import { TypePlayerLevel } from '@/types'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useGame } from './useGame'
 import { getRandomInt } from '@/utils'
 import { useMobile } from './useMobile'
@@ -18,6 +18,59 @@ type MenuState =
 
 const AI_LEVELS: TypeAiLevel[] = ['beginner', 'intermediate', 'pro', 'elite']
 const AI_ROLES: TypeAiRole[] = ['guardian', 'wingman', 'hunter']
+
+const SETTINGS_KEY = 'battle-city:settings:v1'
+
+type StoredSettings = GameSettings & {
+	aiLevel: TypeAiLevel
+	aiRole: TypeAiRole
+}
+
+const DEFAULT_SETTINGS: StoredSettings = {
+	soundPack: 'default',
+	hardcore: false,
+	friendlyFire: false,
+	playerLevel: 0,
+	survivorRespawn: true,
+	aiLevel: 'beginner',
+	aiRole: 'wingman',
+}
+
+// localStorage is user-editable, so every field is validated before use
+const loadSettings = (): StoredSettings => {
+	try {
+		const raw = localStorage.getItem(SETTINGS_KEY)
+		if (!raw) return DEFAULT_SETTINGS
+
+		const stored = JSON.parse(raw) as Record<string, unknown>
+		const level = stored.playerLevel
+
+		return {
+			soundPack: stored.soundPack === 'mario' ? 'mario' : 'default',
+			hardcore: stored.hardcore === true,
+			friendlyFire: stored.friendlyFire === true,
+			playerLevel:
+				Number.isInteger(level) &&
+				Number(level) >= 0 &&
+				Number(level) <= 3
+					? (level as TypePlayerLevel)
+					: DEFAULT_SETTINGS.playerLevel,
+			survivorRespawn:
+				typeof stored.survivorRespawn === 'boolean'
+					? stored.survivorRespawn
+					: DEFAULT_SETTINGS.survivorRespawn,
+			aiLevel: AI_LEVELS.includes(stored.aiLevel as TypeAiLevel)
+				? (stored.aiLevel as TypeAiLevel)
+				: DEFAULT_SETTINGS.aiLevel,
+			aiRole: AI_ROLES.includes(stored.aiRole as TypeAiRole)
+				? (stored.aiRole as TypeAiRole)
+				: DEFAULT_SETTINGS.aiRole,
+		}
+	} catch {
+		// storage unavailable (private mode) or corrupt value: defaults
+		return DEFAULT_SETTINGS
+	}
+}
 
 const menuStates = (
 	gameSettings: GameSettings,
@@ -55,14 +108,23 @@ export const useMenu = () => {
 	const [range, setRange] = useState(5)
 	const [state, setState] = useState<MenuState>('main')
 
-	// Game Settings
-	const [soundPack, setSoundPack] = useState<'default' | 'mario'>('default')
-	const [hardcore, setHardcore] = useState(false)
-	const [friendlyFire, setFriendlyFire] = useState(false)
-	const [playerLevel, setPlayerLevel] = useState<TypePlayerLevel>(0)
-	const [aiLevel, setAiLevel] = useState<TypeAiLevel>('beginner')
-	const [aiRole, setAiRole] = useState<TypeAiRole>('wingman')
-	const [survivorRespawn, setSurvivorRespawn] = useState(true)
+	// Game Settings, restored from storage on mount
+	const [initialSettings] = useState(loadSettings)
+	const [soundPack, setSoundPack] = useState<'default' | 'mario'>(
+		initialSettings.soundPack
+	)
+	const [hardcore, setHardcore] = useState(initialSettings.hardcore)
+	const [friendlyFire, setFriendlyFire] = useState(
+		initialSettings.friendlyFire
+	)
+	const [playerLevel, setPlayerLevel] = useState<TypePlayerLevel>(
+		initialSettings.playerLevel
+	)
+	const [aiLevel, setAiLevel] = useState<TypeAiLevel>(initialSettings.aiLevel)
+	const [aiRole, setAiRole] = useState<TypeAiRole>(initialSettings.aiRole)
+	const [survivorRespawn, setSurvivorRespawn] = useState(
+		initialSettings.survivorRespawn
+	)
 
 	// Lobbying
 	const [lobbyId, setLobbyId] = useState('1000')
@@ -87,21 +149,27 @@ export const useMenu = () => {
 		sound.play()
 	}, [soundPack])
 
-	const gameSettings: GameSettings = {
-		friendlyFire,
-		hardcore,
-		playerLevel,
-		survivorRespawn,
-		soundPack,
-	}
+	const gameSettings: GameSettings = useMemo(
+		() => ({
+			friendlyFire,
+			hardcore,
+			playerLevel,
+			survivorRespawn,
+			soundPack,
+		}),
+		[friendlyFire, hardcore, playerLevel, survivorRespawn, soundPack]
+	)
 
-	const settings: GameSettings = {
-		hardcore,
-		playerLevel,
-		friendlyFire,
-		survivorRespawn,
-		soundPack,
-	}
+	useEffect(() => {
+		try {
+			localStorage.setItem(
+				SETTINGS_KEY,
+				JSON.stringify({ ...gameSettings, aiLevel, aiRole })
+			)
+		} catch {
+			// storage unavailable (private mode): settings last for this session
+		}
+	}, [gameSettings, aiLevel, aiRole])
 
 	const updateState = (newState: MenuState) => {
 		setRange(getMenuStates()[newState].length)
@@ -170,7 +238,7 @@ export const useMenu = () => {
 							case 2:
 								startLocalGame(
 									2,
-									settings,
+									gameSettings,
 									undefined,
 									aiLevel,
 									aiRole
@@ -190,7 +258,7 @@ export const useMenu = () => {
 					case '1 player':
 						switch (choose) {
 							case 1:
-								startLocalGame(1, settings)
+								startLocalGame(1, gameSettings)
 								break
 							case 2:
 								setEditing(true)
@@ -203,7 +271,7 @@ export const useMenu = () => {
 					case '2 players':
 						switch (choose) {
 							case 1:
-								startLocalGame(2, settings)
+								startLocalGame(2, gameSettings)
 								break
 							case 2:
 								setEditing(true)
@@ -265,7 +333,7 @@ export const useMenu = () => {
 						switch (choose) {
 							case 2:
 								updateState('lobby')
-								createLobby(lobbyId, settings)
+								createLobby(lobbyId, gameSettings)
 								break
 							case 3:
 								setEditing(true)
@@ -342,7 +410,16 @@ export const useMenu = () => {
 		return () => {
 			document.removeEventListener('keypress', chooseHandlerListener)
 		}
-	}, [state, choose, soundPack, isEditing, aiLevel, aiRole, survivorRespawn])
+	}, [
+		state,
+		choose,
+		soundPack,
+		isEditing,
+		aiLevel,
+		aiRole,
+		gameSettings,
+		searchingLobbyId,
+	])
 
 	return {
 		state: getMenuStates()[state],

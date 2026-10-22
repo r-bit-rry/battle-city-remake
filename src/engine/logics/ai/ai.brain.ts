@@ -9,14 +9,59 @@ import {
 } from './ai.types'
 import { FLAG_X, FLAG_Y, GUARD_Y } from './ai.perception'
 import { retreatLives } from './ai.profiles'
+import { flagWall } from './ai.terrain'
 
 const distance = (x1: number, y1: number, x2: number, y2: number) =>
 	Math.hypot(x1 - x2, y1 - y2)
 
 const BASE_DEFENSE_LINE_MULTIPLIER = 1.4
+const BASE_ALERT_RADIUS_MULTIPLIER = 1.5
+const BASE_ALERT_AI_DISTANCE = 120
+const BASE_ALERT_SCORE = 1
 
 const enemyById = (snapshot: AiSnapshot, id: string) =>
 	snapshot.enemies.find((enemy) => enemy.id === id)
+
+// A rush on the flag overrides the normal goal weights while the AI is away:
+// one or more enemies inside the alert ring mean "come home". The ring is
+// wide (baseDangerRadius * 1.5), so camping while home starved the AI of
+// kills; the guard duty itself is defendGoal's job once it is back.
+const baseAlertEnemy = (
+	snapshot: AiSnapshot,
+	features: AiTierFeatures
+): AiSnapshot['enemies'][number] | null => {
+	if (
+		distance(snapshot.ai.x, snapshot.ai.y, FLAG_X, FLAG_Y) <=
+		BASE_ALERT_AI_DISTANCE
+	)
+		return null
+
+	const radius = features.baseDangerRadius * BASE_ALERT_RADIUS_MULTIPLIER
+	let nearest: AiSnapshot['enemies'][number] | null = null
+	let nearestDistance = Infinity
+	for (const enemy of snapshot.enemies) {
+		const distToBase = distance(enemy.x, enemy.y, FLAG_X, FLAG_Y)
+		if (distToBase > radius || distToBase >= nearestDistance) continue
+		nearestDistance = distToBase
+		nearest = enemy
+	}
+
+	return nearest
+}
+
+const alertDefendGoal = (
+	snapshot: AiSnapshot,
+	features: AiTierFeatures
+): { goal: AiGoal; score: number; alert: true } | null => {
+	const enemy = baseAlertEnemy(snapshot, features)
+	if (!enemy) return null
+
+	return {
+		goal: { kind: 'defend', x: FLAG_X, y: GUARD_Y, enemyId: enemy.id },
+		score: BASE_ALERT_SCORE,
+		alert: true,
+	}
+}
 
 export const isGoalValid = (goal: AiGoal, snapshot: AiSnapshot) => {
 	if (goal.enemyId && !snapshot.enemies.some((e) => e.id === goal.enemyId))
@@ -68,6 +113,13 @@ const defendGoal = (
 	threats: Threat[],
 	features: AiTierFeatures
 ): { goal: AiGoal; score: number } | null => {
+	// An open flag wall is a base alert while the AI is away: nothing outbids
+	// coming home, because the next enemy bullet through the hole ends the
+	// game. Once it is home, standing guard is defendGoal's normal job.
+	const breached =
+		flagWall(snapshot).breached &&
+		baseAlertEnemy(snapshot, features) !== null
+
 	for (const threat of threats) {
 		const enemy = enemyById(snapshot, threat.enemyId)
 		if (!enemy) continue
@@ -94,7 +146,7 @@ const defendGoal = (
 				y: target.y,
 				enemyId: enemy.id,
 			},
-			score: threat.score,
+			score: breached ? BASE_ALERT_SCORE : threat.score,
 		}
 	}
 
@@ -154,50 +206,82 @@ const engageGoal = (
 	}
 }
 
-const collectGoal = (
+const CONTESTED_BONUS_SHARE = 0.3
+const CONTESTED_BONUS_MARGIN = 12
+const YIELD_TICKS = 24
+const YIELD_RADIUS = 24
+const YIELD_MOVED_DISTANCE = 4
+
+// Yielding is only worth anything to a partner who can take the bonus: alive,
+// actually driving (a statue is the simulator's worst case) and close to it.
+const playerCanTake = (
+	track: AiMemory['playerTrack'],
+	x: number,
+	y: number
+) => {
+	if (track.length < 2) return false
+	const now = track[track.length - 1]
+	const then = track[Math.max(0, track.length - 1 - YIELD_TICKS)]
+
+	return (
+		distance(now.x, now.y, then.x, then.y) > YIELD_MOVED_DISTANCE &&
+		distance(now.x, now.y, x, y) <= YIELD_RADIUS
+	)
+}
+
+const nearestEnemyDistance = (snapshot: AiSnapshot, bonus: AiBonusSnapshot) => {
+	let nearest = Infinity
+	for (const enemy of snapshot.enemies) {
+		const dist = distance(enemy.x, enemy.y, bonus.x, bonus.y)
+		if (dist < nearest) nearest = dist
+	}
+
+	return nearest
+}
+
+export const collectGoal = (
 	snapshot: AiSnapshot,
 	features: AiTierFeatures,
-	threats: Threat[]
+	threats: Threat[],
+	memory: AiMemory
 ): { goal: AiGoal; score: number } | null => {
 	if (features.bonusLogic === 'none') return null
 
 	const valued = snapshot.bonuses
-		.filter(
-			(bonus) =>
-				!snapshot.enemies.some(
-					(enemy) =>
-						distance(enemy.x, enemy.y, bonus.x, bonus.y) <= 40
-				)
-		)
 		.map((bonus) => {
 			let value = bonusValue(snapshot, bonus, features, threats)
+			const aiDistance = distance(
+				snapshot.ai.x,
+				snapshot.ai.y,
+				bonus.x,
+				bonus.y
+			)
+			// An enemy that is clearly closer keeps the bonus in play at a
+			// fraction of its worth instead of dropping it: abandoning every
+			// contested pickup also abandoned the ones it could win.
+			if (
+				nearestEnemyDistance(snapshot, bonus) <=
+				aiDistance - CONTESTED_BONUS_MARGIN
+			)
+				value *= CONTESTED_BONUS_SHARE
+
 			if (
 				features.yieldBonuses &&
 				!snapshot.player.dead &&
+				playerCanTake(memory.playerTrack, bonus.x, bonus.y) &&
 				distance(
 					snapshot.player.x,
 					snapshot.player.y,
 					bonus.x,
 					bonus.y
-				) < distance(snapshot.ai.x, snapshot.ai.y, bonus.x, bonus.y)
+				) < aiDistance
 			)
 				value = 0
 
 			return {
 				bonus,
 				value,
-				score:
-					value *
-					(1 -
-						Math.min(
-							1,
-							distance(
-								snapshot.ai.x,
-								snapshot.ai.y,
-								bonus.x,
-								bonus.y
-							) / 300
-						)),
+				score: value * (1 - Math.min(1, aiDistance / 300)),
 			}
 		})
 		.filter((candidate) => candidate.value > 0)
@@ -309,15 +393,27 @@ export const selectGoal = (
 	memory: AiMemory
 ): AiGoal | null => {
 	const candidates = [
+		alertDefendGoal(snapshot, features),
 		defendGoal(snapshot, threats, features),
 		engageGoal(snapshot, features),
-		collectGoal(snapshot, features, threats),
+		collectGoal(snapshot, features, threats, memory),
 		supportGoal(snapshot, features),
 		retreatGoal(snapshot, features, role),
 		patrolGoal(snapshot, role),
-	].filter((candidate): candidate is { goal: AiGoal; score: number } =>
-		Boolean(candidate)
+	].filter(
+		(
+			candidate
+		): candidate is { goal: AiGoal; score: number; alert?: true } =>
+			Boolean(candidate)
 	)
+
+	const alert = candidates.find((candidate) => candidate.alert)
+	if (alert) {
+		// score 0: never let goal memory outlive the alert
+		memory.goalScore = 0
+
+		return alert.goal
+	}
 
 	const best = candidates
 		.map((candidate) => ({
@@ -348,7 +444,6 @@ export const selectGoal = (
 	}
 
 	memory.goalScore = best.weighted
-	if (best.goal.enemyId) memory.lastTargetId = best.goal.enemyId
 
 	return best.goal
 }

@@ -1,13 +1,25 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Bullet, GameObject } from '../../instances'
+import { gameFrame } from '../index'
 import { AI_ROLE_PROFILES, AI_TIER_FEATURES } from './ai.profiles'
 import { buildSnapshot, createMemory } from './ai.perception'
 import { buildDangerMap } from './ai.threat'
-import { decideTactics, stepPosition } from './ai.tactics'
+import { decideTactics, directionToWaypoint, stepPosition } from './ai.tactics'
 import { makeAiGame, makeEnemy } from './ai.test-utils'
 
 afterEach(() => vi.restoreAllMocks())
+
+const seedRandom = (seedValue: number) => {
+	let seed = seedValue
+	vi.spyOn(Math, 'random').mockImplementation(() => {
+		seed |= 0
+		seed = (seed + 0x6d2b79f5) | 0
+		let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+		t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+		return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+	})
+}
 
 const decide = (
 	game: ReturnType<typeof makeAiGame>,
@@ -37,6 +49,29 @@ describe('stepPosition', () => {
 		expect(stepPosition(100, 100, 'BOTTOM')).toEqual({ x: 100, y: 99 })
 		expect(stepPosition(100, 100, 'LEFT')).toEqual({ x: 99, y: 100 })
 		expect(stepPosition(100, 100, 'RIGHT')).toEqual({ x: 101, y: 100 })
+	})
+})
+
+describe('directionToWaypoint', () => {
+	it('ignores a lane offset the 15 px tank box already covers', () => {
+		// x 3 px off the lane is inside the box: the tank drives the long axis
+		// instead of turning 1 px back and forth to "fix" it.
+		expect(directionToWaypoint({ x: 100, y: 100 }, { x: 103, y: 95 })).toBe(
+			'BOTTOM'
+		)
+		expect(
+			directionToWaypoint({ x: 100, y: 100 }, { x: 102, y: 106 })
+		).toBe('TOP')
+		// outside the deadband the lane wins
+		expect(directionToWaypoint({ x: 100, y: 100 }, { x: 105, y: 95 })).toBe(
+			'RIGHT'
+		)
+		expect(directionToWaypoint({ x: 100, y: 100 }, { x: 98, y: 94 })).toBe(
+			'BOTTOM'
+		)
+		expect(
+			directionToWaypoint({ x: 100, y: 100 }, { x: 102, y: 104 })
+		).toBeNull()
 	})
 })
 
@@ -134,7 +169,6 @@ describe('decideTactics', () => {
 			{ kind: 'patrol', x: 120, y: 40 },
 			{
 				waypoints: [{ x: 48, y: 40 }],
-				brick: null,
 			}
 		)
 
@@ -151,7 +185,7 @@ describe('decideTactics', () => {
 		const decision = decide(
 			game,
 			{ kind: 'engage', x: 120, y: 40 },
-			{ waypoints: [{ x: 48, y: 40 }], brick: { x: 48, y: 40 } }
+			{ waypoints: [{ x: 48, y: 40 }] }
 		)
 
 		expect(decision.fire).toBe(true)
@@ -274,5 +308,64 @@ describe('combat firing', () => {
 		expect(decision.move).not.toBeNull()
 		expect(decision.fire).toBe(false)
 		random.mockRestore()
+	})
+})
+
+describe('heading commitment', () => {
+	it('holds a committed heading for at least eight ticks on a long leg', () => {
+		const game = makeAiGame('pro')
+		game.p2!.coordinateX = 40
+		game.p2!.coordinateY = 100
+		game.p2!.direction = 'RIGHT'
+		const memory = createMemory()
+
+		for (let i = 0; i < 8; i++) {
+			const decision = decide(
+				game,
+				{ kind: 'patrol', x: 160, y: 100 },
+				null,
+				memory
+			)
+
+			expect(decision.move).toBe('RIGHT')
+			expect(memory.commitDir).toBe('RIGHT')
+		}
+	})
+
+	it('turns once and leaves a pocket instead of spinning in place', () => {
+		seedRandom(17)
+		const game = makeAiGame('pro')
+		game.levelChangeAnimation = 0
+		game.p1.coordinateX = 40
+		game.p1.coordinateY = 40
+		game.p2!.coordinateX = 103
+		game.p2!.coordinateY = 100
+		// bricks left, right and above: the only way out is down
+		game.objects = [
+			new GameObject('BRICK', 11, 12),
+			new GameObject('BRICK', 14, 12),
+			new GameObject('BRICK', 12, 14),
+		]
+		game.enemies = [makeEnemy(160, 24)]
+		const startX = game.p2!.coordinateX
+		const startY = game.p2!.coordinateY
+		let changes = 0
+		let last = game.p2!.direction
+
+		for (let i = 0; i < 60; i++) {
+			gameFrame(game)
+			if (game.p2!.direction !== last) {
+				changes++
+				last = game.p2!.direction
+			}
+		}
+
+		expect(changes).toBeLessThan(4)
+		expect(
+			Math.max(
+				Math.abs(game.p2!.coordinateX - startX),
+				Math.abs(game.p2!.coordinateY - startY)
+			)
+		).toBeGreaterThanOrEqual(8)
 	})
 })

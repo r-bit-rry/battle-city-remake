@@ -11,6 +11,7 @@
 		"preview": "vite preview",
 		"test": "vitest run",
 		"bench": "AI_BENCH=1 vitest run src/engine/logics/ai/ai.bench.test.ts",
+		"sim": "vite-node src/engine/sim/cli.ts",
 		"prettier": "prettier --write '**/*.{ts,js,jsx,tsx,css,html}'"
 	},
 	"dependencies": {

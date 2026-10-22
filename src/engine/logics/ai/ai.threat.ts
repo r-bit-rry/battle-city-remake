@@ -1,27 +1,23 @@
 import { TypeDirection } from '../../types'
-import { FLAG_X, FLAG_Y } from './ai.perception'
+import {
+	BLOCK_CELLS,
+	BLOCK_FLAG,
+	BLOCK_FREE,
+	FLAG_X,
+	FLAG_Y,
+} from './ai.perception'
 import {
 	AiBulletSnapshot,
 	AiEnemySnapshot,
+	AiObstacleSnapshot,
 	AiSnapshot,
 	DangerMap,
 	Threat,
 } from './ai.types'
-
-const LANE_VALUES: number[] = []
-for (let value = 7; value <= 200; value++) {
-	if (value % 8 === 0 || value % 8 === 7) LANE_VALUES.push(value)
-}
+import { LANE_COUNT, nearestLaneIndex } from './ai.path'
 
 const distance = (x1: number, y1: number, x2: number, y2: number) =>
 	Math.hypot(x1 - x2, y1 - y2)
-
-export const nearestLane = (value: number) =>
-	LANE_VALUES.reduce(
-		(best, lane) =>
-			Math.abs(lane - value) < Math.abs(best - value) ? lane : best,
-		LANE_VALUES[0]
-	)
 
 export const advance = (
 	x: number,
@@ -41,24 +37,67 @@ export const advance = (
 	}
 }
 
+const stepDelta = (direction: TypeDirection, amount: number) => {
+	switch (direction) {
+		case 'TOP':
+			return { x: 0, y: amount }
+		case 'BOTTOM':
+			return { x: 0, y: -amount }
+		case 'LEFT':
+			return { x: -amount, y: 0 }
+		case 'RIGHT':
+			return { x: amount, y: 0 }
+	}
+}
+
 const typeWeight = (type: AiEnemySnapshot['type']) =>
 	type === 'SPEEDY' ? 1 : type === 'HEAVY' ? 0.6 : 0.5
 
-const obstacleAt = (
+const obstacleInCell = (
+	snapshot: AiSnapshot,
+	cx: number,
+	cy: number,
+	ignoreFlag: boolean
+): AiObstacleSnapshot | undefined => {
+	if (cx < 0 || cx >= BLOCK_CELLS || cy < 0 || cy >= BLOCK_CELLS)
+		return undefined
+
+	const cell = cy * BLOCK_CELLS + cx
+	const value = snapshot.blocked[cell]
+	if (value === BLOCK_FREE || (ignoreFlag && value === BLOCK_FLAG))
+		return undefined
+
+	// two obstacles can share a cell only if their boxes overlap; the later one
+	// in `obstacles` wins, which is safe because no caller reads the fields
+	return snapshot.obstacles[snapshot.blockedOwner[cell] - 1]
+}
+
+export const obstacleAt = (
 	snapshot: AiSnapshot,
 	x: number,
 	y: number,
 	ignoreFlag = false
-) =>
-	snapshot.obstacles.find(
-		(object) =>
-			object.blocksBullets &&
-			!(ignoreFlag && object.flag) &&
-			x >= object.x - 2 &&
-			x <= object.x + 9 &&
-			y >= object.y - 2 &&
-			y <= object.y + 9
+): AiObstacleSnapshot | undefined => {
+	// A cell holds the obstacle *origin*, and a point is inside the bullet box
+	// [ox-2, ox+9] when ox is in [x-9, x+2]. With x = 8cx+rx that window only
+	// reaches origin cell cx-1 when rx <= 1 and cx+1 when rx >= 6, so these
+	// four probes are exact for integer and fractional points alike.
+	const cx = Math.floor(x / 8)
+	const rx = x - cx * 8
+	const cy = Math.floor(y / 8)
+	const ry = y - cy * 8
+	const x0 = rx <= 1 ? cx - 1 : cx
+	const x1 = rx >= 6 ? cx + 1 : cx
+	const y0 = ry <= 1 ? cy - 1 : cy
+	const y1 = ry >= 6 ? cy + 1 : cy
+
+	return (
+		obstacleInCell(snapshot, x0, y0, ignoreFlag) ??
+		obstacleInCell(snapshot, x1, y0, ignoreFlag) ??
+		obstacleInCell(snapshot, x0, y1, ignoreFlag) ??
+		obstacleInCell(snapshot, x1, y1, ignoreFlag)
 	)
+}
 
 export const hasLineToBase = (snapshot: AiSnapshot, enemy: AiEnemySnapshot) => {
 	const steps = Math.ceil(distance(enemy.x, enemy.y, FLAG_X, FLAG_Y) / 4)
@@ -119,12 +158,12 @@ export const predictedHit = (
 	horizon: number
 ) => {
 	if (horizon <= 0) return false
+	const step = stepDelta(bullet.direction, bullet.speed)
 	let bx = bullet.x
 	let by = bullet.y
 	for (let t = 1; t <= horizon; t++) {
-		const next = advance(bx, by, bullet.direction, bullet.speed)
-		bx = next.x
-		by = next.y
+		bx += step.x
+		by += step.y
 		if (obstacleAt(snapshot, bx, by)) return false
 		if (Math.abs(bx - x) <= 7 && Math.abs(by - y) <= 7) return true
 	}
@@ -141,12 +180,12 @@ export const findIncomingBullet = (
 	let bestFrame = Infinity
 	for (const bullet of snapshot.bullets) {
 		if (!bullet.enemy) continue
+		const step = stepDelta(bullet.direction, bullet.speed)
 		let bx = bullet.x
 		let by = bullet.y
 		for (let t = 1; t <= horizon; t++) {
-			const next = advance(bx, by, bullet.direction, bullet.speed)
-			bx = next.x
-			by = next.y
+			bx += step.x
+			by += step.y
 			if (obstacleAt(snapshot, bx, by)) break
 			if (
 				Math.abs(bx - snapshot.ai.x) <= 7 &&
@@ -166,25 +205,27 @@ export const findIncomingBullet = (
 
 export const buildDangerMap = (
 	snapshot: AiSnapshot,
-	horizon: number
+	horizon: number,
+	cache?: DangerMap
 ): DangerMap => {
-	const cells = new Map<string, number>()
+	const cells = cache ? cache.cells : new Map<number, number>()
+	if (cache) cells.clear()
 	for (const bullet of snapshot.bullets) {
 		if (!bullet.enemy) continue
+		const step = stepDelta(bullet.direction, bullet.speed)
 		let bx = bullet.x
 		let by = bullet.y
 		for (let t = 1; t <= horizon; t++) {
-			const next = advance(bx, by, bullet.direction, bullet.speed)
-			bx = next.x
-			by = next.y
+			bx += step.x
+			by += step.y
 			if (obstacleAt(snapshot, bx, by)) break
-			const key = `${nearestLane(bx)},${nearestLane(by)}`
+			const key = nearestLaneIndex(by) * LANE_COUNT + nearestLaneIndex(bx)
 			const current = cells.get(key)
 			if (current === undefined || current > t) cells.set(key, t)
 		}
 	}
 
-	return { cells }
+	return cache ?? { cells }
 }
 
 export const isCellDangerous = (
@@ -193,7 +234,9 @@ export const isCellDangerous = (
 	y: number,
 	withinFrames: number
 ) => {
-	const frame = danger.cells.get(`${nearestLane(x)},${nearestLane(y)}`)
+	const frame = danger.cells.get(
+		nearestLaneIndex(y) * LANE_COUNT + nearestLaneIndex(x)
+	)
 
 	return frame !== undefined && frame <= withinFrames
 }

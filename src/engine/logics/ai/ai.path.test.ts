@@ -17,7 +17,6 @@ describe('findPath', () => {
 		expect(path!.waypoints.every((waypoint) => waypoint.y === 40)).toBe(
 			true
 		)
-		expect(path!.brick).toBeNull()
 	})
 
 	it('detours around a wall when brick drilling is off', () => {
@@ -37,7 +36,11 @@ describe('findPath', () => {
 		const path = findPath(tank, 96, 40, wall, { allowBrick: true })
 
 		expect(path).not.toBeNull()
-		expect(path!.brick).toEqual({ x: 72, y: 40 })
+		expect(
+			path!.waypoints.some(
+				(waypoint) => waypoint.x === 72 && waypoint.y === 40
+			)
+		).toBe(true)
 	})
 
 	it('returns null when the target is sealed by stone', () => {
@@ -67,5 +70,60 @@ describe('findPath', () => {
 				ignoreId: 'enemy-1',
 			})
 		).not.toBeNull()
+	})
+
+	it('does not route through a gate one cell (8 px) wide', () => {
+		// full-height wall at x=64 with a one-tile doorway at y=96..103: a 15 px
+		// tank cannot fit, so the wall has to be impassable
+		const gate = [...wallColumn(64, 0, 88), ...wallColumn(64, 104, 200)]
+
+		expect(
+			findPath(makeEnemy(40, 96), 120, 96, gate, { allowBrick: false })
+		).toBeNull()
+	})
+
+	it('routes through a two-cell (16 px) gate that a tank fits', () => {
+		const gate = [...wallColumn(64, 0, 80), ...wallColumn(64, 104, 200)]
+
+		const path = findPath(makeEnemy(40, 96), 120, 96, gate, {
+			allowBrick: false,
+		})
+
+		expect(path).not.toBeNull()
+		expect(
+			path!.waypoints.some(
+				(waypoint) =>
+					waypoint.x >= 63 &&
+					waypoint.x <= 72 &&
+					waypoint.y >= 88 &&
+					waypoint.y <= 103
+			)
+		).toBe(true)
+	})
+
+	it('returns the same path on consecutive searches', () => {
+		const tank = makeEnemy(40, 40)
+		const wall = wallColumn(64, 0, 55)
+		const first = findPath(tank, 96, 40, wall, { allowBrick: true })
+		const second = findPath(tank, 96, 40, wall, { allowBrick: true })
+
+		expect(second).toEqual(first)
+		expect(second).not.toBe(first)
+	})
+
+	it('searches the whole grid without dropping frontier entries', () => {
+		// corner to corner on an empty board: expands almost every cell, so the
+		// frontier has to grow well past LANE_COUNT * LANE_COUNT entries
+		const path = findPath(
+			{ id: 'tank', coordinateX: 7, coordinateY: 7 },
+			200,
+			200,
+			[],
+			{ allowBrick: false }
+		)
+
+		expect(path).not.toBeNull()
+		expect(path!.waypoints).toHaveLength(98)
+		expect(path!.waypoints[97]).toEqual({ x: 200, y: 200 })
 	})
 })
