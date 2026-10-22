@@ -59,7 +59,8 @@ export const goalStalled = (
 	goal: AiGoal | null,
 	x: number,
 	y: number,
-	reach: number
+	reach: number,
+	cycle: boolean
 ) => {
 	const gap = goal ? Math.hypot(x - goal.x, y - goal.y) : 0
 	const key = goal
@@ -74,7 +75,7 @@ export const goalStalled = (
 
 	return (
 		goal !== null &&
-		goal.kind !== 'defend' &&
+		(goal.kind !== 'defend' || cycle) &&
 		memory.stallTicks >= PROGRESS_WINDOW &&
 		gap > reach &&
 		gap >= memory.stallGap

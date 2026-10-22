@@ -162,24 +162,35 @@ const laneValue = (
 	return 0
 }
 
+// A brick is shot down the axis it stands on, which is not the direction the
+// probe that found it walked: obstacleAt's four-probe lookup also returns the
+// brick one cell to the side, so the probe's direction would point the gun at
+// a wall. A corner brick can be shot either axis; the more valuable one wins.
+const drillAxis = (
+	snapshot: AiSnapshot,
+	brick: { x: number; y: number },
+	goal: AiGoal | null
+): { value: number; direction: TypeDirection } | null => {
+	const ai = snapshot.ai
+	let best: { value: number; direction: TypeDirection } | null = null
+	if (onLine(ai.x, brick.x)) {
+		const direction: TypeDirection = brick.y > ai.y ? 'TOP' : 'BOTTOM'
+		best = { value: laneValue(snapshot, direction, goal), direction }
+	}
+	if (onLine(ai.y, brick.y)) {
+		const direction: TypeDirection = brick.x > ai.x ? 'RIGHT' : 'LEFT'
+		const value = laneValue(snapshot, direction, goal)
+		if (!best || value > best.value) best = { value, direction }
+	}
+
+	return best
+}
+
 export const drillValue = (
 	snapshot: AiSnapshot,
 	brick: { x: number; y: number },
 	goal: AiGoal | null
-): number => {
-	const ai = snapshot.ai
-	let value = 0
-	// A corner brick can be shot down either axis; the more valuable one wins.
-	if (onLine(ai.x, brick.x))
-		value = laneValue(snapshot, brick.y > ai.y ? 'TOP' : 'BOTTOM', goal)
-	if (onLine(ai.y, brick.y))
-		value = Math.max(
-			value,
-			laneValue(snapshot, brick.x > ai.x ? 'RIGHT' : 'LEFT', goal)
-		)
-
-	return value
-}
+): number => drillAxis(snapshot, brick, goal)?.value ?? 0
 
 // One gate for both copies of "is the other player on this firing line". The
 // engine's bullet hit box is ±8 (isBulletHitTank), so ±8 here leaves no
@@ -212,24 +223,19 @@ export const chooseDrill = (
 
 	let best: { x: number; y: number; direction: TypeDirection } | null = null
 	let bestValue = 0
-	for (const direction of DIRECTIONS) {
-		if (friendInLine(snapshot.ai, direction, snapshot.player)) continue
-		const point = advance(
-			snapshot.ai.x,
-			snapshot.ai.y,
-			direction,
-			LANE_STEP
-		)
+	for (const probe of DIRECTIONS) {
+		if (friendInLine(snapshot.ai, probe, snapshot.player)) continue
+		const point = advance(snapshot.ai.x, snapshot.ai.y, probe, LANE_STEP)
 		const object = obstacleAt(snapshot, point.x, point.y)
 		if (!object?.destructible) continue
 		// Never drill the flag ring: an open ring stays open, and opensLane
 		// rewards a ring brick whenever an enemy stands beyond it.
 		if (nearFlag(object.x, object.y)) continue
 
-		const value = drillValue(snapshot, { x: object.x, y: object.y }, goal)
-		if (value > bestValue) {
-			bestValue = value
-			best = { x: object.x, y: object.y, direction }
+		const axis = drillAxis(snapshot, { x: object.x, y: object.y }, goal)
+		if (axis && axis.value > bestValue) {
+			bestValue = axis.value
+			best = { x: object.x, y: object.y, direction: axis.direction }
 		}
 	}
 

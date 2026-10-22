@@ -5,7 +5,7 @@ import { gameFrame } from '../index'
 import { AI_ROLE_PROFILES, AI_TIER_FEATURES } from './ai.profiles'
 import { buildSnapshot, createMemory } from './ai.perception'
 import { buildDangerMap } from './ai.threat'
-import { decideTactics, stepPosition } from './ai.tactics'
+import { decideTactics, directionToWaypoint, stepPosition } from './ai.tactics'
 import { makeAiGame, makeEnemy } from './ai.test-utils'
 
 afterEach(() => vi.restoreAllMocks())
@@ -49,6 +49,29 @@ describe('stepPosition', () => {
 		expect(stepPosition(100, 100, 'BOTTOM')).toEqual({ x: 100, y: 99 })
 		expect(stepPosition(100, 100, 'LEFT')).toEqual({ x: 99, y: 100 })
 		expect(stepPosition(100, 100, 'RIGHT')).toEqual({ x: 101, y: 100 })
+	})
+})
+
+describe('directionToWaypoint', () => {
+	it('ignores a lane offset the 15 px tank box already covers', () => {
+		// x 3 px off the lane is inside the box: the tank drives the long axis
+		// instead of turning 1 px back and forth to "fix" it.
+		expect(directionToWaypoint({ x: 100, y: 100 }, { x: 103, y: 95 })).toBe(
+			'BOTTOM'
+		)
+		expect(
+			directionToWaypoint({ x: 100, y: 100 }, { x: 102, y: 106 })
+		).toBe('TOP')
+		// outside the deadband the lane wins
+		expect(directionToWaypoint({ x: 100, y: 100 }, { x: 105, y: 95 })).toBe(
+			'RIGHT'
+		)
+		expect(directionToWaypoint({ x: 100, y: 100 }, { x: 98, y: 94 })).toBe(
+			'BOTTOM'
+		)
+		expect(
+			directionToWaypoint({ x: 100, y: 100 }, { x: 102, y: 104 })
+		).toBeNull()
 	})
 })
 

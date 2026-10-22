@@ -159,6 +159,23 @@ describe('chooseDrill', () => {
 		).toEqual({ x: 40, y: 48, direction: 'TOP' })
 	})
 
+	it('fires down the axis the brick stands on, not the probe that found it', () => {
+		// Tank at x=41, y=39: only the RIGHT probe's neighbourhood reaches the
+		// brick at (48,40), but the tank can shoot that brick upwards. The old
+		// label said RIGHT and the tank fired at a wall, which is why laneValue
+		// and drillValue were indistinguishable in this suite.
+		const brick = new GameObject('BRICK', 6, 5)
+		const snapshot = emptySnapshot([brick], [makeEnemy(44, 72)])
+		snapshot.ai.x = 41
+		snapshot.ai.y = 39
+
+		expect(chooseDrill(snapshot, null, AI_TIER_FEATURES.elite)).toEqual({
+			x: 48,
+			y: 40,
+			direction: 'TOP',
+		})
+	})
+
 	it('returns null when the only brick in reach has the player in line', () => {
 		const up = new GameObject('BRICK', 5, 6)
 		const snapshot = emptySnapshot([up])

@@ -262,18 +262,47 @@ describe('selectGoal', () => {
 		const contestedGoal = collectGoal(
 			contested.snapshot,
 			AI_TIER_FEATURES.pro,
-			contested.threats
+			contested.threats,
+			contested.memory
 		)
 
 		game.enemies = []
 		const solo = setup(game)
-		const soloGoal = collectGoal(solo.snapshot, AI_TIER_FEATURES.pro, [])
+		const soloGoal = collectGoal(
+			solo.snapshot,
+			AI_TIER_FEATURES.pro,
+			[],
+			solo.memory
+		)
 
 		expect(contestedGoal?.score).toBeGreaterThan(0)
 		expect(contestedGoal!.score / soloGoal!.score).toBeCloseTo(0.3)
 	})
 
-	it('yields a contested bonus when the player is closer (elite)', () => {
+	it('yields a contested bonus to a player who is close and moving (elite)', () => {
+		const game = makeAiGame('elite')
+		game.p2!.coordinateX = 40
+		game.p2!.coordinateY = 40
+		game.p1.coordinateX = 100
+		game.p1.coordinateY = 100
+		game.bonuses = [makeBonus(90, 100)]
+		const first = setup(game)
+		// two snapshots' worth of track: the player is driving, 14 px out
+		game.p1.coordinateY = 110
+		const { snapshot, threats, memory } = setup(game, first.memory)
+
+		const goal = selectGoal(
+			snapshot,
+			threats,
+			AI_TIER_FEATURES.elite,
+			AI_ROLE_PROFILES.wingman,
+			memory
+		)
+
+		expect(goal?.kind).not.toBe('collect')
+	})
+
+	it('keeps the bonus against a player who never moves (elite)', () => {
 		const game = makeAiGame('elite')
 		game.p2!.coordinateX = 40
 		game.p2!.coordinateY = 40
@@ -290,7 +319,7 @@ describe('selectGoal', () => {
 			memory
 		)
 
-		expect(goal?.kind).not.toBe('collect')
+		expect(goal?.kind).toBe('collect')
 	})
 
 	it('sends the hunter after enemies and the guardian home', () => {

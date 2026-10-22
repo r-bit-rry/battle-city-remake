@@ -60,12 +60,18 @@ export const canStep = (
 	return !isTankBlockedAt({ id: ai.id }, next.x, next.y, busy)
 }
 
+// The tank box is 15 px wide, so a lane 4 px off is already covered by it: a
+// smaller deadband spends the turn on a correction the box does not need.
+export const WAYPOINT_DEADBAND = 4
+
 export const directionToWaypoint = (
 	ai: { x: number; y: number },
 	waypoint: { x: number; y: number }
 ): TypeDirection | null => {
-	if (waypoint.x !== ai.x) return waypoint.x > ai.x ? 'RIGHT' : 'LEFT'
-	if (waypoint.y !== ai.y) return waypoint.y > ai.y ? 'TOP' : 'BOTTOM'
+	if (Math.abs(waypoint.x - ai.x) > WAYPOINT_DEADBAND)
+		return waypoint.x > ai.x ? 'RIGHT' : 'LEFT'
+	if (Math.abs(waypoint.y - ai.y) > WAYPOINT_DEADBAND)
+		return waypoint.y > ai.y ? 'TOP' : 'BOTTOM'
 
 	return null
 }

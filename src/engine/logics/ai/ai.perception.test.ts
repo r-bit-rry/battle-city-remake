@@ -164,13 +164,14 @@ describe('goalStalled', () => {
 	const frames = (
 		goal: Parameters<typeof goalStalled>[1],
 		step: (tick: number) => { x: number; y: number },
-		count = 60
+		count = 60,
+		cycle = true
 	) => {
 		const memory = createMemory()
 		let stalled = false
 		for (let tick = 0; tick < count; tick++) {
 			const { x, y } = step(tick)
-			stalled = goalStalled(memory, goal, x, y, 8)
+			stalled = goalStalled(memory, goal, x, y, 8, cycle)
 		}
 
 		return stalled
@@ -205,7 +206,8 @@ describe('goalStalled', () => {
 				{ kind: 'engage', x: 60, y: 60 + tick, enemyId: 'e' },
 				160,
 				100,
-				8
+				8,
+				false
 			)
 		}
 
@@ -214,10 +216,12 @@ describe('goalStalled', () => {
 
 	it('does not report a held position or a goal already reached', () => {
 		expect(
-			frames({ kind: 'defend', x: 103, y: 31 }, () => ({
-				x: 160,
-				y: 100,
-			}))
+			frames(
+				{ kind: 'defend', x: 103, y: 31 },
+				() => ({ x: 160, y: 100 }),
+				60,
+				false
+			)
 		).toBe(false)
 		expect(
 			frames({ kind: 'patrol', x: 160, y: 100 }, () => ({
@@ -225,6 +229,15 @@ describe('goalStalled', () => {
 				y: 100,
 			}))
 		).toBe(false)
+	})
+
+	it('reports a defender that shuttles instead of holding', () => {
+		expect(
+			frames({ kind: 'defend', x: 103, y: 31 }, (tick) => ({
+				x: 127 + (tick % 17),
+				y: 7,
+			}))
+		).toBe(true)
 	})
 
 	it('needs a full window before it reports', () => {

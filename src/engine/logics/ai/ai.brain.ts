@@ -208,6 +208,26 @@ const engageGoal = (
 
 const CONTESTED_BONUS_SHARE = 0.3
 const CONTESTED_BONUS_MARGIN = 12
+const YIELD_TICKS = 24
+const YIELD_RADIUS = 24
+const YIELD_MOVED_DISTANCE = 4
+
+// Yielding is only worth anything to a partner who can take the bonus: alive,
+// actually driving (a statue is the simulator's worst case) and close to it.
+const playerCanTake = (
+	track: AiMemory['playerTrack'],
+	x: number,
+	y: number
+) => {
+	if (track.length < 2) return false
+	const now = track[track.length - 1]
+	const then = track[Math.max(0, track.length - 1 - YIELD_TICKS)]
+
+	return (
+		distance(now.x, now.y, then.x, then.y) > YIELD_MOVED_DISTANCE &&
+		distance(now.x, now.y, x, y) <= YIELD_RADIUS
+	)
+}
 
 const nearestEnemyDistance = (snapshot: AiSnapshot, bonus: AiBonusSnapshot) => {
 	let nearest = Infinity
@@ -222,7 +242,8 @@ const nearestEnemyDistance = (snapshot: AiSnapshot, bonus: AiBonusSnapshot) => {
 export const collectGoal = (
 	snapshot: AiSnapshot,
 	features: AiTierFeatures,
-	threats: Threat[]
+	threats: Threat[],
+	memory: AiMemory
 ): { goal: AiGoal; score: number } | null => {
 	if (features.bonusLogic === 'none') return null
 
@@ -247,6 +268,7 @@ export const collectGoal = (
 			if (
 				features.yieldBonuses &&
 				!snapshot.player.dead &&
+				playerCanTake(memory.playerTrack, bonus.x, bonus.y) &&
 				distance(
 					snapshot.player.x,
 					snapshot.player.y,
@@ -374,7 +396,7 @@ export const selectGoal = (
 		alertDefendGoal(snapshot, features),
 		defendGoal(snapshot, threats, features),
 		engageGoal(snapshot, features),
-		collectGoal(snapshot, features, threats),
+		collectGoal(snapshot, features, threats, memory),
 		supportGoal(snapshot, features),
 		retreatGoal(snapshot, features, role),
 		patrolGoal(snapshot, role),

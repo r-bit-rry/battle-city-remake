@@ -23,6 +23,7 @@ import {
 import { AiMemory, AiSnapshot, DangerMap } from './ai/ai.types'
 
 const states = new WeakMap<Game, AiMemory>()
+
 const NO_PROGRESS_SIDESTEP = 4
 const NO_PROGRESS_GOAL = 12
 const DANGER_REFRESH_FRAMES = 3
@@ -184,6 +185,14 @@ export const aiFrameLogic = (game: Game) => {
 		memory.positionTrack.shift()
 
 	const goal = memory.goal
+
+	// A closed window with no net progress is a wedge even when the tank is
+	// moving, which the frame-to-frame counter above cannot see. Two windows
+	// straight before acting: one window of a tight patrol is not a wedge.
+	const cycle =
+		memory.positionTrack.length >= PROGRESS_WINDOW &&
+		wedgedInWindow(memory.positionTrack, p2.coordinateX, p2.coordinateY)
+
 	const stalled =
 		// A greedy tier has no path to discard, so this would only re-roll its
 		// aim jitter; the wedge it is meant to break is a waypoint problem.
@@ -193,19 +202,16 @@ export const aiFrameLogic = (game: Game) => {
 			goal,
 			p2.coordinateX,
 			p2.coordinateY,
-			WAYPOINT_REACHED_DISTANCE
+			WAYPOINT_REACHED_DISTANCE,
+			// defending is a held position, not a journey: only a shuttling
+			// defender is stalled.
+			cycle
 		)
 
-	// A closed window with no net progress is a wedge even when the tank is
-	// moving, which the frame-to-frame counter above cannot see. Two windows
-	// straight before acting: one window of a tight patrol is not a wedge.
-	const cycle =
-		memory.positionTrack.length >= PROGRESS_WINDOW &&
-		wedgedInWindow(memory.positionTrack, p2.coordinateX, p2.coordinateY)
 	memory.wedgedTicks = cycle ? memory.wedgedTicks + 1 : 0
 	const wedged = memory.wedgedTicks >= PROGRESS_WINDOW
 
-	if (stalled && cycle && goal) {
+	if (stalled && goal) {
 		memory.positionTrack = []
 		memory.stallKey = null
 		memory.stallGap = 0

@@ -75,7 +75,7 @@ export const AI_TIER_FEATURES: Record<TypeAiLevel, AiTierFeatures> = {
 	elite: {
 		pathfinding: 'astar-drill',
 		decisionInterval: 4,
-		fireCooldown: 12,
+		fireCooldown: 10,
 		aimTolerance: 8,
 		aimJitter: 2,
 		aimLead: true,
