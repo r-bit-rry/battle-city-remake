@@ -192,12 +192,9 @@ export const friendInLine = (
 
 	const dx = player.x - ai.x
 	const dy = player.y - ai.y
-	if (direction === 'TOP')
-		return Math.abs(dx) <= FRIEND_HIT_BAND && dy > 0
-	if (direction === 'BOTTOM')
-		return Math.abs(dx) <= FRIEND_HIT_BAND && dy < 0
-	if (direction === 'RIGHT')
-		return Math.abs(dy) <= FRIEND_HIT_BAND && dx > 0
+	if (direction === 'TOP') return Math.abs(dx) <= FRIEND_HIT_BAND && dy > 0
+	if (direction === 'BOTTOM') return Math.abs(dx) <= FRIEND_HIT_BAND && dy < 0
+	if (direction === 'RIGHT') return Math.abs(dy) <= FRIEND_HIT_BAND && dx > 0
 
 	return Math.abs(dy) <= FRIEND_HIT_BAND && dx < 0
 }
@@ -225,11 +222,7 @@ export const chooseDrill = (
 		// opensLane rewards the brick when an enemy stands beyond it.
 		if (goal?.kind === 'defend' && nearFlag(object.x, object.y)) continue
 
-		const value = drillValue(
-			snapshot,
-			{ x: object.x, y: object.y },
-			goal
-		)
+		const value = drillValue(snapshot, { x: object.x, y: object.y }, goal)
 		if (value > bestValue) {
 			bestValue = value
 			best = { x: object.x, y: object.y, direction }

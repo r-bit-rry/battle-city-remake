@@ -37,10 +37,10 @@ const average = (values: number[]) =>
 	values.reduce((sum, value) => sum + value, 0) / values.length
 
 describe.runIf(process.env.AI_BENCH === '1')('AI soak benchmarks', () => {
-	// still failing after P4: elite (2306) is 1084 below pro (3390), the
-	// allowance is 400. P4 fixed the low pair (beginner 2003 vs intermediate
-	// 1721) but the breached-wall defend bonus costs the elite wingman kills.
-	it.fails('orders tiers by composite score', () => {
+	// final wave A table (seeds 1/7/42): beginner 2150, intermediate 2537,
+	// pro 2697, elite 3020. Elite had 2306 at P4 and lost the base on all
+	// three seeds; the alert is now gated on being away and its radar is 96.
+	it('orders tiers by composite score', () => {
 		const tiers: TypeAiLevel[] = [
 			'beginner',
 			'intermediate',
@@ -58,10 +58,12 @@ describe.runIf(process.env.AI_BENCH === '1')('AI soak benchmarks', () => {
 		}
 	})
 
-	// still failing after P4: the breached-wall alert relies on defending, and
-	// it makes the hunter come home too (guardian 0.56 < hunter 0.71 near-base),
-	// while pro seed 7 loses the base for both roles. The flag-wall alert and
-	// corridor tests show the wall is sealed and the guard lane is drivable.
+	// still failing after wave A: the near-base ratio is 0.642 guardian vs
+	// 0.673 hunter, and both lose the flag on two of three seeds (guardian
+	// 1 and 42, hunter 7 and 42) - the wingman keeps all three. Role weights
+	// cannot outvote a flag rush while goal memory holds the engage goal; the
+	// attempt to add a base-emergency override made pro:wingman drop from
+	// 2697 to 1835 and was reverted.
 	it.fails(
 		'keeps the guardian closer to the base than the hunter while both keep it alive',
 		() => {

@@ -117,7 +117,8 @@ const defendGoal = (
 	// coming home, because the next enemy bullet through the hole ends the
 	// game. Once it is home, standing guard is defendGoal's normal job.
 	const breached =
-		flagWall(snapshot).breached && baseAlertEnemy(snapshot, features) !== null
+		flagWall(snapshot).breached &&
+		baseAlertEnemy(snapshot, features) !== null
 
 	for (const threat of threats) {
 		const enemy = enemyById(snapshot, threat.enemyId)

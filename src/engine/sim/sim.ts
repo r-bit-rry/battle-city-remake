@@ -1,9 +1,6 @@
 import { Game } from '../instances'
 import { aiSettings, makeAiGame } from '../logics/ai/ai.test-utils'
-import {
-	PROGRESS_WINDOW,
-	wedgedInWindow,
-} from '../logics/ai/ai.perception'
+import { PROGRESS_WINDOW, wedgedInWindow } from '../logics/ai/ai.perception'
 import { gameFrame } from '../logics'
 import { GameSettings, TypeAiLevel, TypeAiRole } from '../types'
 import { isEnemy } from '../utils'

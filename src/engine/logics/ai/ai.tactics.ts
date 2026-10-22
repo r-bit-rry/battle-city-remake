@@ -424,6 +424,9 @@ const chooseTactics = (
 	// A clear row/column inside SNIPE_RANGE is worth a shot even when the enemy
 	// is farther out than this tier's engage range.
 	let snipeTurn: TypeDirection | null = null
+	// A turn toward a lane the gun cannot shoot down yet is the spin the
+	// commitment exists to stop; a clear shot with the gun ready is not.
+	let uncommitted = false
 	for (const enemy of snapshot.enemies) {
 		if (distance(ai.x, ai.y, enemy.x, enemy.y) > SNIPE_RANGE) continue
 		const aim = firingDirection(ai, enemy, HIT_BAND)
@@ -431,7 +434,14 @@ const chooseTactics = (
 		if (friendInLine(ai, aim, snapshot.player)) continue
 		if (!shotPathClear(ai, aim, enemy, snapshot)) continue
 		if (ai.direction !== aim) {
-			if (!snipeTurn) snipeTurn = aim
+			if (
+				!snipeTurn &&
+				memory.fireCooldown <= 0 &&
+				ai.availableBullets > 0
+			) {
+				snipeTurn = aim
+				uncommitted = true
+			}
 			continue
 		}
 		if (memory.fireCooldown <= 0 && ai.availableBullets > 0) {
@@ -442,10 +452,13 @@ const chooseTactics = (
 		if (!snipeTurn) snipeTurn = aim
 	}
 	if (snipeTurn) {
-		// A clear lane is worth the turn: commit to the lane the shot is on
-		// instead of holding a heading that cannot shoot. The commitment moves
-		// with it, so two clear lanes still cannot alternate every frame.
-		void memory.commitTicks
+		// A clear lane beats a stale heading: take the commitment with the
+		// turn instead of waiting it out. Handing the commitment the new lane
+		// also keeps two clear lanes from alternating every frame.
+		if (uncommitted) {
+			memory.commitDir = snipeTurn
+			memory.commitTicks = COMMIT_TICKS
+		}
 
 		return { move: snipeTurn, fire: false }
 	}

@@ -180,8 +180,9 @@ export const aiFrameLogic = (game: Game) => {
 	if (memory.positionTrack.length > PROGRESS_WINDOW)
 		memory.positionTrack.shift()
 
-	// one second of a rolling window is a corner cut; two seconds straight is
-	// a wedge worth breaking, because a patrol circle resets the count
+	// A closed window with no net progress is a wedge even when the tank is
+	// moving, which the frame-to-frame counter above cannot see. Two windows
+	// straight before acting: one window of a tight patrol is not a wedge.
 	const cycle =
 		memory.positionTrack.length >= PROGRESS_WINDOW &&
 		wedgedInWindow(memory.positionTrack, p2.coordinateX, p2.coordinateY)

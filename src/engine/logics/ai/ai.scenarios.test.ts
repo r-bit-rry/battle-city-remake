@@ -4,12 +4,7 @@ import { GameObject } from '../../instances'
 import { isEnemy } from '../../utils'
 import { gameFrame } from '../index'
 import { aiFrameLogic, getAiMemory } from '../ai.logic'
-import {
-	aiSettings,
-	makeAiGame,
-	makeBonus,
-	makeEnemy,
-} from './ai.test-utils'
+import { aiSettings, makeAiGame, makeBonus, makeEnemy } from './ai.test-utils'
 
 const brickColumn = (tileX: number, fromTileY: number, toTileY: number) =>
 	Array.from(
@@ -194,9 +189,9 @@ describe('AI ally scenarios', () => {
 		control.objects = []
 		for (let i = 0; i < 3; i++) gameFrame(control)
 
-		expect(
-			control.bullets.some((bullet) => !isEnemy(bullet.shooter))
-		).toBe(true)
+		expect(control.bullets.some((bullet) => !isEnemy(bullet.shooter))).toBe(
+			true
+		)
 	})
 
 	it('fires down a clear lane instead of holding a stale commitment', () => {
