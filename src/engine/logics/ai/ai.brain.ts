@@ -214,18 +214,23 @@ const YIELD_MOVED_DISTANCE = 4
 
 // Yielding is only worth anything to a partner who can take the bonus: alive,
 // actually driving (a statue is the simulator's worst case) and close to it.
+const playerIsDriving = (track: AiMemory['playerTrack']) => {
+	if (track.length < 2) return false
+	const now = track[track.length - 1]
+	const then = track[Math.max(0, track.length - 1 - YIELD_TICKS)]
+
+	return distance(now.x, now.y, then.x, then.y) > YIELD_MOVED_DISTANCE
+}
+
 const playerCanTake = (
 	track: AiMemory['playerTrack'],
 	x: number,
 	y: number
 ) => {
-	if (track.length < 2) return false
 	const now = track[track.length - 1]
-	const then = track[Math.max(0, track.length - 1 - YIELD_TICKS)]
 
 	return (
-		distance(now.x, now.y, then.x, then.y) > YIELD_MOVED_DISTANCE &&
-		distance(now.x, now.y, x, y) <= YIELD_RADIUS
+		playerIsDriving(track) && distance(now.x, now.y, x, y) <= YIELD_RADIUS
 	)
 }
 
@@ -303,9 +308,14 @@ export const collectGoal = (
 
 const supportGoal = (
 	snapshot: AiSnapshot,
-	features: AiTierFeatures
+	features: AiTierFeatures,
+	memory: AiMemory
 ): { goal: AiGoal; score: number } | null => {
 	if (!features.coordination || snapshot.playerIntent === 'dead') return null
+	// A statue has no front to cover: parking a rally point 7 px from a player
+	// who never moves is a hard limit cycle, not support. pushing/retreating
+	// imply motion, so this only removes the static case.
+	if (!playerIsDriving(memory.playerTrack)) return null
 
 	if (snapshot.playerIntent === 'retreating') {
 		const pursuer = snapshot.enemies
@@ -397,7 +407,7 @@ export const selectGoal = (
 		defendGoal(snapshot, threats, features),
 		engageGoal(snapshot, features),
 		collectGoal(snapshot, features, threats, memory),
-		supportGoal(snapshot, features),
+		supportGoal(snapshot, features, memory),
 		retreatGoal(snapshot, features, role),
 		patrolGoal(snapshot, role),
 	].filter(

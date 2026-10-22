@@ -322,6 +322,53 @@ describe('selectGoal', () => {
 		expect(goal?.kind).toBe('collect')
 	})
 
+	it('does not camp a rally point for a player who never moves (pro)', () => {
+		const game = makeAiGame('pro')
+		game.p2!.coordinateX = 40
+		game.p2!.coordinateY = 100
+		game.p1.coordinateX = 40
+		game.p1.coordinateY = 40
+		const memory = createMemory()
+		// a full yield window of identical samples: the statue from wave D
+		for (let i = 0; i < 24; i++) memory.playerTrack.push({ x: 40, y: 40 })
+
+		const { snapshot, threats } = setup(game, memory)
+		const goal = selectGoal(
+			snapshot,
+			threats,
+			AI_TIER_FEATURES.pro,
+			AI_ROLE_PROFILES.wingman,
+			memory
+		)
+
+		expect(goal?.kind).not.toBe('support')
+		expect(goal?.kind).toBe('patrol')
+	})
+
+	it('supports a player who is driving (pro)', () => {
+		const game = makeAiGame('pro')
+		game.p2!.coordinateX = 40
+		game.p2!.coordinateY = 100
+		game.p1.coordinateX = 60
+		game.p1.coordinateY = 40
+		const memory = createMemory()
+		for (let i = 0; i < 24; i++)
+			memory.playerTrack.push({ x: 40 + i, y: 40 })
+
+		const { snapshot, threats } = setup(game, memory)
+		const goal = selectGoal(
+			snapshot,
+			threats,
+			AI_TIER_FEATURES.pro,
+			AI_ROLE_PROFILES.wingman,
+			memory
+		)
+
+		expect(goal?.kind).toBe('support')
+		expect(goal?.x).toBe(160)
+		expect(goal?.y).toBe(110)
+	})
+
 	it('sends the hunter after enemies and the guardian home', () => {
 		const game = makeAiGame('pro')
 		game.p2!.coordinateX = 40
