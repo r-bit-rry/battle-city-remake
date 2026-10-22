@@ -1,5 +1,9 @@
 import { Game } from '../instances'
 import { aiSettings, makeAiGame } from '../logics/ai/ai.test-utils'
+import {
+	PROGRESS_WINDOW,
+	wedgedInWindow,
+} from '../logics/ai/ai.perception'
 import { gameFrame } from '../logics'
 import { GameSettings, TypeAiLevel, TypeAiRole } from '../types'
 import { isEnemy } from '../utils'
@@ -16,7 +20,7 @@ export interface SimMetrics {
 	kills: number
 	baseAlive: boolean
 	aiAlive: boolean
-	/** Ticks where the AI tank's position did not change, over all counted ticks. */
+	/** Ticks where the AI tank made no net progress over the last window. */
 	stuckRatio: number
 	friendlyFire: number
 	p50Ms: number
@@ -53,6 +57,7 @@ export class Sim {
 	private ticks = 0
 	private kills = 0
 	private stuckTicks = 0
+	private positions: { x: number; y: number }[] = []
 	private friendlyFire = 0
 	private times: number[] = []
 
@@ -102,8 +107,6 @@ export class Sim {
 		const game = this.game
 		const p2 = game.p2!
 		const started = performance.now()
-		const beforeX = p2.coordinateX
-		const beforeY = p2.coordinateY
 		const p1Lives = game.p1.lives
 		const nearP1 = game.bullets
 			.filter(
@@ -129,7 +132,13 @@ export class Sim {
 				this.kills++
 			}
 		}
-		if (p2.coordinateX === beforeX && p2.coordinateY === beforeY)
+		this.positions.push({ x: p2.coordinateX, y: p2.coordinateY })
+		if (this.positions.length > PROGRESS_WINDOW) this.positions.shift()
+		// a limit cycle moves a pixel per tick and still goes nowhere
+		if (
+			this.positions.length >= PROGRESS_WINDOW &&
+			wedgedInWindow(this.positions, p2.coordinateX, p2.coordinateY)
+		)
 			this.stuckTicks++
 		if (
 			game.p1.lives < p1Lives &&

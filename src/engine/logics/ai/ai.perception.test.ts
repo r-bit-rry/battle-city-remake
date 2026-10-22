@@ -1,7 +1,12 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { GameObject } from '../../instances'
-import { buildSnapshot, createMemory, inferPlayerIntent } from './ai.perception'
+import {
+	buildSnapshot,
+	createMemory,
+	inferPlayerIntent,
+	wedgedInWindow,
+} from './ai.perception'
 import { makeAiGame, makeBonus, makeEnemy } from './ai.test-utils'
 
 describe('buildSnapshot', () => {
@@ -115,5 +120,41 @@ describe('inferPlayerIntent', () => {
 		expect(inferPlayerIntent([], { ...player, lives: 1 })).toBe(
 			'retreating'
 		)
+	})
+})
+
+describe('wedgedInWindow', () => {
+	it('sees a limit cycle that moves a pixel every tick', () => {
+		// the guardian wedge: x=127, y 24..40, never more than 2 px from where
+		// the window opened, although the tank moves on every tick
+		const track = Array.from({ length: 60 }, (_, i) => ({
+			x: 127 + (i % 2),
+			y: 24 + (i % 2),
+		}))
+
+		expect(
+			wedgedInWindow(track, track[track.length - 1].x, track[0].y)
+		).toBe(true)
+	})
+
+	it('does not call standing still a wedge', () => {
+		const track = Array.from({ length: 60 }, () => ({ x: 103, y: 31 }))
+
+		expect(wedgedInWindow(track, 103, 31)).toBe(false)
+	})
+
+	it('sees progress once the window spans a real walk', () => {
+		expect(wedgedInWindow([{ x: 100, y: 100 }], 108, 100)).toBe(false)
+		expect(
+			wedgedInWindow(
+				[
+					{ x: 100, y: 100 },
+					{ x: 108, y: 100 },
+				],
+				108,
+				100
+			)
+		).toBe(false)
+		expect(wedgedInWindow([], 40, 100)).toBe(false)
 	})
 })

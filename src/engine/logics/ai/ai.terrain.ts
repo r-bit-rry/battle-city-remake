@@ -25,16 +25,22 @@ const FLAG_MAX_CELL_X = (FLAG_X + 7) >> 3
 const FLAG_MIN_CELL_Y = (FLAG_Y - 7) >> 3
 const FLAG_MAX_CELL_Y = (FLAG_Y + 7) >> 3
 
+const nearFlag = (x: number, y: number) =>
+	Math.abs(x - FLAG_X) <= FLAG_WALL_RADIUS &&
+	Math.abs(y - FLAG_Y) <= FLAG_WALL_RADIUS
+
 const cellValue = (snapshot: AiSnapshot, cx: number, cy: number) => {
 	if (cx < 0 || cy < 0 || cx > 25 || cy > 25) return BLOCK_SOLID
 
 	return snapshot.blocked[cy * BLOCK_CELLS + cx]
 }
 
+// A side is sealed only if every ring cell holds something: one surviving
+// brick still leaves a bullet lane through the hole next to it.
 const sideSealed = (
 	snapshot: AiSnapshot,
 	cells: { cx: number; cy: number }[]
-) => cells.some(({ cx, cy }) => cellValue(snapshot, cx, cy) !== BLOCK_FREE)
+) => cells.every(({ cx, cy }) => cellValue(snapshot, cx, cy) !== BLOCK_FREE)
 
 const ringCells = () => {
 	const left: { cx: number; cy: number }[] = []
@@ -62,11 +68,7 @@ export const flagWall = (
 	let bricks = 0
 	for (const obstacle of snapshot.obstacles) {
 		if (!obstacle.destructible) continue
-		if (
-			Math.abs(obstacle.x - FLAG_X) <= FLAG_WALL_RADIUS &&
-			Math.abs(obstacle.y - FLAG_Y) <= FLAG_WALL_RADIUS
-		)
-			bricks++
+		if (nearFlag(obstacle.x, obstacle.y)) bricks++
 	}
 
 	return {
@@ -176,7 +178,12 @@ export const drillValue = (
 	return value
 }
 
-const friendInLine = (
+// One gate for both copies of "is the other player on this firing line". The
+// engine's bullet hit box is ±8 (isBulletHitTank), so ±7 leaves a friendly-fire
+// hole one pixel wide.
+const FRIEND_HIT_BAND = 8
+
+export const friendInLine = (
 	ai: { x: number; y: number },
 	direction: TypeDirection,
 	player: AiSnapshot['player']
@@ -185,11 +192,14 @@ const friendInLine = (
 
 	const dx = player.x - ai.x
 	const dy = player.y - ai.y
-	if (direction === 'TOP') return Math.abs(dx) <= 7 && dy > 0
-	if (direction === 'BOTTOM') return Math.abs(dx) <= 7 && dy < 0
-	if (direction === 'RIGHT') return Math.abs(dy) <= 7 && dx > 0
+	if (direction === 'TOP')
+		return Math.abs(dx) <= FRIEND_HIT_BAND && dy > 0
+	if (direction === 'BOTTOM')
+		return Math.abs(dx) <= FRIEND_HIT_BAND && dy < 0
+	if (direction === 'RIGHT')
+		return Math.abs(dy) <= FRIEND_HIT_BAND && dx > 0
 
-	return Math.abs(dy) <= 7 && dx < 0
+	return Math.abs(dy) <= FRIEND_HIT_BAND && dx < 0
 }
 
 export const chooseDrill = (
@@ -211,8 +221,15 @@ export const chooseDrill = (
 		)
 		const object = obstacleAt(snapshot, point.x, point.y)
 		if (!object?.destructible) continue
+		// A defender inside the base must never drill its own flag ring:
+		// opensLane rewards the brick when an enemy stands beyond it.
+		if (goal?.kind === 'defend' && nearFlag(object.x, object.y)) continue
 
-		const value = laneValue(snapshot, direction, goal)
+		const value = drillValue(
+			snapshot,
+			{ x: object.x, y: object.y },
+			goal
+		)
 		if (value > bestValue) {
 			bestValue = value
 			best = { x: object.x, y: object.y, direction }

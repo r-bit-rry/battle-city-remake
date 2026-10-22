@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { AI_ROLE_PROFILES, AI_TIER_FEATURES } from './ai.profiles'
 import { buildSnapshot, createMemory } from './ai.perception'
 import { computeThreats } from './ai.threat'
-import { bonusValue, isGoalValid, selectGoal } from './ai.brain'
+import { bonusValue, collectGoal, isGoalValid, selectGoal } from './ai.brain'
 import { makeAiGame, makeBonus, makeEnemy } from './ai.test-utils'
 import { AiBonusSnapshot } from './ai.types'
 
@@ -247,6 +247,30 @@ describe('selectGoal', () => {
 
 		expect(goal?.kind).not.toBe('defend')
 		expect(goal?.enemyId).toBeUndefined()
+	})
+
+	it('keeps a contested bonus at a third of its value', () => {
+		const game = makeAiGame('pro')
+		game.p2!.coordinateX = 103
+		game.p2!.coordinateY = 120
+		game.p1.coordinateX = 200
+		game.p1.coordinateY = 200
+		game.bonuses = [makeBonus(103, 50)]
+		// 10 px from the bonus: 20 px closer than the AI is
+		game.enemies = [makeEnemy(103, 60)]
+		const contested = setup(game)
+		const contestedGoal = collectGoal(
+			contested.snapshot,
+			AI_TIER_FEATURES.pro,
+			contested.threats
+		)
+
+		game.enemies = []
+		const solo = setup(game)
+		const soloGoal = collectGoal(solo.snapshot, AI_TIER_FEATURES.pro, [])
+
+		expect(contestedGoal?.score).toBeGreaterThan(0)
+		expect(contestedGoal!.score / soloGoal!.score).toBeCloseTo(0.3)
 	})
 
 	it('yields a contested bonus when the player is closer (elite)', () => {

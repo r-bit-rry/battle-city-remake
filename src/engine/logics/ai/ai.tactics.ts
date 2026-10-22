@@ -12,7 +12,7 @@ import {
 } from './ai.types'
 import { FLAG_X, FLAG_Y } from './ai.perception'
 import { advance, findIncomingBullet } from './ai.threat'
-import { chooseDrill } from './ai.terrain'
+import { chooseDrill, friendInLine } from './ai.terrain'
 
 export const ALL_DIRECTIONS: TypeDirection[] = [
 	'TOP',
@@ -113,22 +113,6 @@ const isDirectionSafe = (
 	}
 
 	return true
-}
-
-const friendInLine = (
-	ai: { x: number; y: number },
-	direction: TypeDirection,
-	player: AiSnapshot['player']
-) => {
-	if (player.dead) return false
-
-	const dx = player.x - ai.x
-	const dy = player.y - ai.y
-	if (direction === 'TOP') return Math.abs(dx) <= 7 && dy > 0
-	if (direction === 'BOTTOM') return Math.abs(dx) <= 7 && dy < 0
-	if (direction === 'RIGHT') return Math.abs(dy) <= 7 && dx > 0
-
-	return Math.abs(dy) <= 7 && dx < 0
 }
 
 const shotPathClear = (
@@ -457,7 +441,14 @@ const chooseTactics = (
 		}
 		if (!snipeTurn) snipeTurn = aim
 	}
-	if (snipeTurn) return { move: snipeTurn, fire: false }
+	if (snipeTurn) {
+		// A clear lane is worth the turn: commit to the lane the shot is on
+		// instead of holding a heading that cannot shoot. The commitment moves
+		// with it, so two clear lanes still cannot alternate every frame.
+		void memory.commitTicks
+
+		return { move: snipeTurn, fire: false }
+	}
 
 	const tolerance =
 		Math.max(HIT_BAND, features.aimTolerance) +

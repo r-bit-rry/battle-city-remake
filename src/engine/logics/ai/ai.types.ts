@@ -159,7 +159,11 @@ export interface AiMemory {
 	noProgressTicks: number
 	/** Consecutive frames the flag has been exposed to a base rush. */
 	baseAlertTicks: number
+	/** Consecutive frames the progress window has been wedged. */
+	wedgedTicks: number
 	playerTrack: { x: number; y: number }[]
+	/** AI positions over the progress window, oldest first. */
+	positionTrack: { x: number; y: number }[]
 	lastTargetId: string | null
 }
 

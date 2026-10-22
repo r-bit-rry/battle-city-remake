@@ -16,6 +16,36 @@ export const FLAG_X = 103
 export const FLAG_Y = 7
 export const GUARD_Y = 31
 export const PLAYER_TRACK_SIZE = 60
+/** Frames a progress window spans: one second at 60 fps. */
+export const PROGRESS_WINDOW = 60
+/** Net displacement that counts as having gone somewhere. */
+export const PROGRESS_DISTANCE = 8
+
+/**
+ * A limit cycle moves a pixel every tick and still goes nowhere, so progress
+ * is net displacement over the whole window rather than the last frame. A tank
+ * that stands still on purpose (guard duty, holding a firing line) is not
+ * wedged, so the window must also have travelled a real distance.
+ */
+export const wedgedInWindow = (
+	track: { x: number; y: number }[],
+	x: number,
+	y: number
+) => {
+	if (track.length < 2) return false
+
+	let travelled = 0
+	for (let i = 1; i < track.length; i++)
+		travelled += Math.hypot(
+			track[i].x - track[i - 1].x,
+			track[i].y - track[i - 1].y
+		)
+
+	return (
+		travelled >= PROGRESS_DISTANCE &&
+		Math.hypot(x - track[0].x, y - track[0].y) < PROGRESS_DISTANCE
+	)
+}
 
 export const BLOCK_CELLS = 32
 export const BLOCK_FREE = 0
@@ -38,7 +68,9 @@ export const createMemory = (): AiMemory => ({
 	commitTicks: 0,
 	noProgressTicks: 0,
 	baseAlertTicks: 0,
+	wedgedTicks: 0,
 	playerTrack: [],
+	positionTrack: [],
 	lastTargetId: null,
 })
 

@@ -4,7 +4,12 @@ import { GameObject } from '../../instances'
 import { isEnemy } from '../../utils'
 import { gameFrame } from '../index'
 import { aiFrameLogic, getAiMemory } from '../ai.logic'
-import { makeAiGame, makeBonus, makeEnemy } from './ai.test-utils'
+import {
+	aiSettings,
+	makeAiGame,
+	makeBonus,
+	makeEnemy,
+} from './ai.test-utils'
 
 const brickColumn = (tileX: number, fromTileY: number, toTileY: number) =>
 	Array.from(
@@ -147,6 +152,80 @@ describe('AI ally scenarios', () => {
 		expect(
 			game.bullets.filter((bullet) => !isEnemy(bullet.shooter))
 		).toHaveLength(0)
+	})
+
+	it('never fires through the other player 8 px off the lane', () => {
+		// the engine's bullets collide at ±8 px (isBulletHitTank), so a gate
+		// that only covers ±7 lets this shot through
+		seedRandom(5)
+		const game = makeAiGame('elite', 'wingman', {
+			...aiSettings,
+			friendlyFire: true,
+		})
+		game.levelChangeAnimation = 0
+		game.p2!.coordinateX = 103
+		game.p2!.coordinateY = 100
+		game.p2!.direction = 'TOP'
+		game.p1.coordinateX = 111
+		game.p1.coordinateY = 140
+		game.enemies = [makeEnemy(103, 220)]
+		game.objects = []
+		const lives = game.p1.lives
+
+		for (let i = 0; i < 20; i++) gameFrame(game)
+
+		expect(game.p1.lives).toBe(lives)
+		expect(
+			game.bullets.filter((bullet) => !isEnemy(bullet.shooter))
+		).toHaveLength(0)
+
+		// positive control: the same setup without p1 in the way fires
+		const control = makeAiGame('elite', 'wingman', {
+			...aiSettings,
+			friendlyFire: true,
+		})
+		control.levelChangeAnimation = 0
+		control.p2!.coordinateX = 103
+		control.p2!.coordinateY = 100
+		control.p2!.direction = 'TOP'
+		control.p1.coordinateX = 40
+		control.p1.coordinateY = 200
+		control.enemies = [makeEnemy(103, 220)]
+		control.objects = []
+		for (let i = 0; i < 3; i++) gameFrame(control)
+
+		expect(
+			control.bullets.some((bullet) => !isEnemy(bullet.shooter))
+		).toBe(true)
+	})
+
+	it('fires down a clear lane instead of holding a stale commitment', () => {
+		seedRandom(13)
+		const game = makeAiGame('elite')
+		game.levelChangeAnimation = 0
+		game.p1.coordinateX = 40
+		game.p1.coordinateY = 200
+		game.p2!.coordinateX = 103
+		game.p2!.coordinateY = 100
+		game.p2!.direction = 'LEFT'
+		game.objects = []
+		game.enemies = [makeEnemy(200, 180)]
+
+		// two frames of driving: the heading commitment is now live
+		for (let i = 0; i < 2; i++) gameFrame(game)
+		game.p2!.coordinateX = 103
+		game.p2!.coordinateY = 100
+		game.enemies = [makeEnemy(103, 220)]
+
+		let ticks = 0
+		let fired = false
+		while (ticks < 8 && !fired) {
+			gameFrame(game)
+			ticks++
+			fired = game.bullets.some((bullet) => !isEnemy(bullet.shooter))
+		}
+
+		expect(fired, `first shot after ${ticks} ticks`).toBe(true)
 	})
 
 	it('snipes an aligned enemy 120 px away, beyond engage range', () => {

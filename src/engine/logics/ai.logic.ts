@@ -1,8 +1,13 @@
 import { Game } from '../instances'
-import { BusyCoordinates } from '../types'
+import { BusyCoordinates, TypeDirection } from '../types'
 import { isPlayerCanMove, isPlayerDead } from '../utils'
 import { AI_ROLE_PROFILES, AI_TIER_FEATURES } from './ai/ai.profiles'
-import { buildSnapshot, createMemory } from './ai/ai.perception'
+import {
+	buildSnapshot,
+	createMemory,
+	PROGRESS_WINDOW,
+	wedgedInWindow,
+} from './ai/ai.perception'
 import { buildDangerMap, computeThreats } from './ai/ai.threat'
 import { findPath } from './ai/ai.path'
 import { selectGoal, baseAlertEnemy } from './ai/ai.brain'
@@ -166,14 +171,50 @@ export const aiFrameLogic = (game: Game) => {
 		? memory.baseAlertTicks + 1
 		: 0
 
+	// A limit cycle moves a pixel every tick, so adjacent frames look fine:
+	// compare against the position a window ago as well.
+	memory.positionTrack.push({
+		x: p2.coordinateX,
+		y: p2.coordinateY,
+	})
+	if (memory.positionTrack.length > PROGRESS_WINDOW)
+		memory.positionTrack.shift()
+
+	// one second of a rolling window is a corner cut; two seconds straight is
+	// a wedge worth breaking, because a patrol circle resets the count
+	const cycle =
+		memory.positionTrack.length >= PROGRESS_WINDOW &&
+		wedgedInWindow(memory.positionTrack, p2.coordinateX, p2.coordinateY)
+	memory.wedgedTicks = cycle ? memory.wedgedTicks + 1 : 0
+	const wedged = memory.wedgedTicks >= PROGRESS_WINDOW
+
 	if (memory.noProgressTicks >= NO_PROGRESS_GOAL) {
 		memory.noProgressTicks = 0
+		memory.positionTrack = []
 		memory.goal = null
 		memory.cooldown = 0
 		memory.path = null
 		memory.pathSignature = null
 		memory.commitDir = null
 		memory.commitTicks = 0
+		// a wedged tank needs a new heading as well as a new goal: turn it
+		// around, or at least off the lane it has been circling on
+		if (wedged) {
+			const perpendicular: TypeDirection[] =
+				snapshot.ai.direction === 'TOP' ||
+				snapshot.ai.direction === 'BOTTOM'
+					? ['LEFT', 'RIGHT']
+					: ['TOP', 'BOTTOM']
+			const sidestep = [...perpendicular, ...ALL_DIRECTIONS].find(
+				(direction) => canStep(snapshot.ai, direction, busy)
+			)
+			if (sidestep) {
+				controls.move = sidestep
+				memory.commitDir = sidestep
+				memory.commitTicks = COMMIT_TICKS
+			}
+		}
+		memory.wedgedTicks = 0
 	} else if (memory.noProgressTicks === NO_PROGRESS_SIDESTEP) {
 		memory.path = null
 		const sidestep = ALL_DIRECTIONS.find(

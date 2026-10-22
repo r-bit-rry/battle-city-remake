@@ -113,9 +113,11 @@ const defendGoal = (
 	threats: Threat[],
 	features: AiTierFeatures
 ): { goal: AiGoal; score: number } | null => {
-	// An open flag wall is a base alert: nothing outbids coming home, because
-	// the next enemy bullet through the hole ends the game.
-	const breached = flagWall(snapshot).breached
+	// An open flag wall is a base alert while the AI is away: nothing outbids
+	// coming home, because the next enemy bullet through the hole ends the
+	// game. Once it is home, standing guard is defendGoal's normal job.
+	const breached =
+		flagWall(snapshot).breached && baseAlertEnemy(snapshot, features) !== null
 
 	for (const threat of threats) {
 		const enemy = enemyById(snapshot, threat.enemyId)
@@ -216,7 +218,7 @@ const nearestEnemyDistance = (snapshot: AiSnapshot, bonus: AiBonusSnapshot) => {
 	return nearest
 }
 
-const collectGoal = (
+export const collectGoal = (
 	snapshot: AiSnapshot,
 	features: AiTierFeatures,
 	threats: Threat[]

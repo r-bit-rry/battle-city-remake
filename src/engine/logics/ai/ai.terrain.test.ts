@@ -45,6 +45,29 @@ describe('flagWall', () => {
 		expect(wall.breached).toBe(false)
 	})
 
+	it('reports a breach when a single brick of a side is gone', () => {
+		// one ring brick per side: a lane-wide hole is enough for a bullet
+		for (const [tileX, tileY] of [
+			[11, 0],
+			[14, 1],
+			[12, 2],
+		]) {
+			const game = makeAiGame('elite')
+			game.levelChangeAnimation = 0
+			game.objects = Map1().objects.filter(
+				(object) =>
+					object.coordinateX !== tileX * 8 ||
+					object.coordinateY !== tileY * 8
+			)
+			game.enemies = []
+
+			expect(
+				flagWall(buildSnapshot(game, createMemory())).breached,
+				`${tileX},${tileY}`
+			).toBe(true)
+		}
+	})
+
 	it('reports a breach when the top-side bricks are gone', () => {
 		const snapshot = stockSnapshot()
 		const topSide = snapshot.obstacles.filter(
@@ -135,6 +158,31 @@ describe('chooseDrill', () => {
 
 		expect(
 			chooseDrill(snapshot, null, AI_TIER_FEATURES.beginner)
+		).toBeNull()
+	})
+
+	it('never drills its own flag wall while defending', () => {
+		// AI beside the flag ring (brick at 96,24 is 7 px from the flag), an
+		// enemy on the far side of it: without the guard this is a +3 brick.
+		const brick = new GameObject('BRICK', 12, 3)
+		const snapshot = emptySnapshot([brick], [makeEnemy(140, 24)])
+		snapshot.ai.x = 88
+		snapshot.ai.y = 24
+		snapshot.ai.direction = 'RIGHT'
+
+		expect(
+			chooseDrill(
+				snapshot,
+				{ kind: 'engage', x: 140, y: 24 },
+				AI_TIER_FEATURES.elite
+			)
+		).toEqual({ x: 96, y: 24, direction: 'RIGHT' })
+		expect(
+			chooseDrill(
+				snapshot,
+				{ kind: 'defend', x: 140, y: 24 },
+				AI_TIER_FEATURES.elite
+			)
 		).toBeNull()
 	})
 })
