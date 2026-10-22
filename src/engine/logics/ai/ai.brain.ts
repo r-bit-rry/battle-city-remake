@@ -26,7 +26,7 @@ const enemyById = (snapshot: AiSnapshot, id: string) =>
 // one or more enemies inside the alert ring mean "come home". The ring is
 // wide (baseDangerRadius * 1.5), so camping while home starved the AI of
 // kills; the guard duty itself is defendGoal's job once it is back.
-export const baseAlertEnemy = (
+const baseAlertEnemy = (
 	snapshot: AiSnapshot,
 	features: AiTierFeatures
 ): AiSnapshot['enemies'][number] | null => {
@@ -411,7 +411,6 @@ export const selectGoal = (
 	if (alert) {
 		// score 0: never let goal memory outlive the alert
 		memory.goalScore = 0
-		if (alert.goal.enemyId) memory.lastTargetId = alert.goal.enemyId
 
 		return alert.goal
 	}
@@ -445,7 +444,6 @@ export const selectGoal = (
 	}
 
 	memory.goalScore = best.weighted
-	if (best.goal.enemyId) memory.lastTargetId = best.goal.enemyId
 
 	return best.goal
 }

@@ -11,7 +11,7 @@ import {
 } from './ai/ai.perception'
 import { buildDangerMap, computeThreats } from './ai/ai.threat'
 import { findPath } from './ai/ai.path'
-import { selectGoal, baseAlertEnemy } from './ai/ai.brain'
+import { selectGoal } from './ai/ai.brain'
 import {
 	ALL_DIRECTIONS,
 	canStep,
@@ -171,9 +171,6 @@ export const aiFrameLogic = (game: Game) => {
 	const moved =
 		p2.coordinateX !== memory.lastX || p2.coordinateY !== memory.lastY
 	memory.noProgressTicks = moved ? 0 : memory.noProgressTicks + 1
-	memory.baseAlertTicks = baseAlertEnemy(snapshot, features)
-		? memory.baseAlertTicks + 1
-		: 0
 
 	// A limit cycle moves a pixel every tick, so adjacent frames look fine:
 	// compare against the position a window ago as well.

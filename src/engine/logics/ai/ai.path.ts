@@ -109,7 +109,6 @@ const buildGrid = (busy: BusyCoordinates[], ignoreId?: string) => {
 
 // readCell results; out-params keep the search allocation free
 let cellCost = 0
-let cellIsBrick = false
 
 const readCell = (xi: number, yi: number, options: PathOptions): boolean => {
 	const x = LANES[xi]
@@ -122,7 +121,6 @@ const readCell = (xi: number, yi: number, options: PathOptions): boolean => {
 		if (!options.allowBrick) return false
 
 		cellCost = 3
-		cellIsBrick = true
 
 		return true
 	}
@@ -134,7 +132,6 @@ const readCell = (xi: number, yi: number, options: PathOptions): boolean => {
 		cost += options.dangerPenalty * Math.max(0, 1 - frame / horizon)
 	}
 	cellCost = cost
-	cellIsBrick = false
 
 	return true
 }
@@ -233,7 +230,7 @@ export const findPath = (
 		nearestLaneIndex(tank.coordinateX)
 	const goalIndex =
 		nearestLaneIndex(targetY) * LANE_COUNT + nearestLaneIndex(targetX)
-	if (startIndex === goalIndex) return { waypoints: [], brick: null }
+	if (startIndex === goalIndex) return { waypoints: [] }
 
 	buildGrid(busy, options.ignoreId)
 	cost.fill(Infinity)
@@ -283,19 +280,5 @@ export const findPath = (
 	}
 	waypoints.reverse()
 
-	let brick: { x: number; y: number } | null = null
-	if (options.allowBrick) {
-		let cursor = goalIndex
-		while (cursor !== startIndex) {
-			const xi = cursor % LANE_COUNT
-			const yi = (cursor - xi) / LANE_COUNT
-			if (readCell(xi, yi, options) && cellIsBrick) {
-				brick = { x: LANES[xi], y: LANES[yi] }
-				break
-			}
-			cursor = parents[cursor]
-		}
-	}
-
-	return { waypoints, brick }
+	return { waypoints }
 }

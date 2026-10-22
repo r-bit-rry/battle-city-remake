@@ -28,9 +28,10 @@ Measured with seeds 1/7/42 over 3000 ticks (`wingman`), the tiers score
 **2150 / 2157 / 3264 / 3406** for beginner / intermediate / pro / elite. The
 7-point gap between the first two is inside seed noise, so tier ordering is
 reliable only at the top: treat beginner and intermediate as roughly equal.
-On `pro`, the wingman kept the flag on 3/3 seeds, guardian on 1/3 and hunter on
-2/3; on `elite`, guardian kept it 3/3 and hunter 1/3. No role is reliable across
-tiers yet; the wingman is the most consistent (3/3 at pro and elite).
+Counting runs that ended with the flag still up (a run also ends when the AI
+runs out of lives or reaches the tick cap): on `pro` wingman 3/3, guardian 1/3,
+hunter 2/3; on `elite`, guardian 3/3 and hunter 1/3. No role is reliable across
+tiers yet; the wingman is the most consistent.
 
 Known limits, not fixed yet:
 

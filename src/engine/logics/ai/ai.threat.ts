@@ -14,12 +14,10 @@ import {
 	DangerMap,
 	Threat,
 } from './ai.types'
-import { LANES, LANE_COUNT, nearestLaneIndex } from './ai.path'
+import { LANE_COUNT, nearestLaneIndex } from './ai.path'
 
 const distance = (x1: number, y1: number, x2: number, y2: number) =>
 	Math.hypot(x1 - x2, y1 - y2)
-
-export const nearestLane = (value: number) => LANES[nearestLaneIndex(value)]
 
 export const advance = (
 	x: number,

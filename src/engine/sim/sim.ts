@@ -18,7 +18,11 @@ export interface SimMetrics {
 	kills: number
 	baseAlive: boolean
 	aiAlive: boolean
-	/** Ticks where the AI tank made no net progress over the last window. */
+	/**
+	 * Fraction of ticks where the tank covered at least 8 px across the window
+	 * but ended under 8 px from where the window started — a limit cycle.
+	 * Standing still does not count, so a frozen tank scores 0.
+	 */
 	stuckRatio: number
 	/** Fraction of ticks spent on a defend goal. */
 	defendShare: number

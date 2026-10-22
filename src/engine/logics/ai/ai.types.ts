@@ -119,7 +119,6 @@ export interface AiSnapshot {
 	blocked: Uint8Array
 	/** 1-based index into `obstacles` per blocked cell, 0 = none. */
 	blockedOwner: Uint16Array
-	base: { x: number; y: number; alive: boolean }
 	mapSignature: string
 	playerIntent: PlayerIntent
 }
@@ -138,7 +137,6 @@ export interface DangerMap {
 
 export interface LanePath {
 	waypoints: { x: number; y: number }[]
-	brick: { x: number; y: number } | null
 }
 
 export interface AiMemory {
@@ -157,8 +155,6 @@ export interface AiMemory {
 	commitTicks: number
 	/** Consecutive frames the tank's position did not change. */
 	noProgressTicks: number
-	/** Consecutive frames the flag has been exposed to a base rush. */
-	baseAlertTicks: number
 	/** Consecutive frames the progress window has been wedged. */
 	wedgedTicks: number
 	/** Identity of the goal the stall window belongs to. */
@@ -170,7 +166,6 @@ export interface AiMemory {
 	playerTrack: { x: number; y: number }[]
 	/** AI positions over the progress window, oldest first. */
 	positionTrack: { x: number; y: number }[]
-	lastTargetId: string | null
 }
 
 export interface AiDecision {

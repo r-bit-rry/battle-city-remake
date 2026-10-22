@@ -29,9 +29,11 @@ const average = (values: number[]) =>
 	values.reduce((sum, value) => sum + value, 0) / values.length
 
 describe.runIf(process.env.AI_BENCH === '1')('AI soak benchmarks', () => {
-	// final wave B table (seeds 1/7/42): beginner 2150, intermediate 2423,
-	// pro 2564, elite 3342. Every change to the decision path re-rolls the
-	// simulator's RNG walk, so this pins the strict order, not the absolutes.
+	// tree table (seeds 1/7/42): beginner 2150, intermediate 2157, pro 3264,
+	// elite 3406. The margins the assertions rely on are 7 points
+	// (beginner→intermediate), 1107 (intermediate→pro) and 142 (pro→elite).
+	// Every change to the decision path re-rolls the simulator's RNG walk, so
+	// this pins the strict order, not the absolutes.
 	it('orders tiers by composite score', () => {
 		const tiers: TypeAiLevel[] = [
 			'beginner',

@@ -102,14 +102,12 @@ export const createMemory = (): AiMemory => ({
 	commitDir: null,
 	commitTicks: 0,
 	noProgressTicks: 0,
-	baseAlertTicks: 0,
 	wedgedTicks: 0,
 	stallKey: null,
 	stallGap: 0,
 	stallTicks: 0,
 	playerTrack: [],
 	positionTrack: [],
-	lastTargetId: null,
 })
 
 export const inferPlayerIntent = (
@@ -229,7 +227,6 @@ export const buildSnapshot = (game: Game, memory: AiMemory): AiSnapshot => {
 		obstacles,
 		blocked,
 		blockedOwner,
-		base: { x: FLAG_X, y: FLAG_Y, alive: game.isFlagAlive },
 		mapSignature: mapSignature(game),
 		playerIntent: inferPlayerIntent(memory.playerTrack, player),
 	}

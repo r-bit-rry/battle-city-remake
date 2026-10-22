@@ -169,7 +169,6 @@ describe('decideTactics', () => {
 			{ kind: 'patrol', x: 120, y: 40 },
 			{
 				waypoints: [{ x: 48, y: 40 }],
-				brick: null,
 			}
 		)
 
@@ -186,7 +185,7 @@ describe('decideTactics', () => {
 		const decision = decide(
 			game,
 			{ kind: 'engage', x: 120, y: 40 },
-			{ waypoints: [{ x: 48, y: 40 }], brick: { x: 48, y: 40 } }
+			{ waypoints: [{ x: 48, y: 40 }] }
 		)
 
 		expect(decision.fire).toBe(true)

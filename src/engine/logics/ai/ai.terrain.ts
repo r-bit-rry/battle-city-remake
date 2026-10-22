@@ -186,12 +186,6 @@ const drillAxis = (
 	return best
 }
 
-export const drillValue = (
-	snapshot: AiSnapshot,
-	brick: { x: number; y: number },
-	goal: AiGoal | null
-): number => drillAxis(snapshot, brick, goal)?.value ?? 0
-
 // One gate for both copies of "is the other player on this firing line". The
 // engine's bullet hit box is ±8 (isBulletHitTank), so ±8 here leaves no
 // friendly-fire hole; tactics' own HIT_BAND is also 8, while terrain's aiming

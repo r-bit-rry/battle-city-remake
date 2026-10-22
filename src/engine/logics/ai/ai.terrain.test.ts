@@ -4,7 +4,7 @@ import { GameObject } from '../../instances'
 import { Map1 } from '../../maps/1'
 import { AI_TIER_FEATURES } from './ai.profiles'
 import { buildSnapshot, createMemory } from './ai.perception'
-import { chooseDrill, drillValue, flagWall } from './ai.terrain'
+import { chooseDrill, flagWall } from './ai.terrain'
 import { makeAiGame, makeEnemy } from './ai.test-utils'
 
 // The stock map is the only wall that matters, so the wall tests load it.
@@ -94,42 +94,6 @@ describe('flagWall', () => {
 	})
 })
 
-describe('drillValue', () => {
-	it('ranks the brick between the AI and an enemy above a brick beside it', () => {
-		const between = new GameObject('BRICK', 5, 6)
-		const beside = new GameObject('BRICK', 6, 5)
-		const snapshot = emptySnapshot([between, beside], [makeEnemy(40, 72)])
-
-		expect(
-			drillValue(
-				snapshot,
-				{ x: between.coordinateX, y: between.coordinateY },
-				null
-			)
-		).toBe(3)
-		expect(
-			drillValue(
-				snapshot,
-				{ x: beside.coordinateX, y: beside.coordinateY },
-				null
-			)
-		).toBe(0)
-	})
-
-	it('values a brick that lines up with the goal when no enemy is behind it', () => {
-		const brick = new GameObject('BRICK', 5, 6)
-		const snapshot = emptySnapshot([brick])
-
-		expect(
-			drillValue(
-				snapshot,
-				{ x: brick.coordinateX, y: brick.coordinateY },
-				{ kind: 'patrol', x: 40, y: 120 }
-			)
-		).toBe(2)
-	})
-})
-
 describe('chooseDrill', () => {
 	it('picks the brick that opens the lane on the enemy', () => {
 		const up = new GameObject('BRICK', 5, 6)
@@ -163,7 +127,7 @@ describe('chooseDrill', () => {
 		// Tank at x=41, y=39: only the RIGHT probe's neighbourhood reaches the
 		// brick at (48,40), but the tank can shoot that brick upwards. The old
 		// label said RIGHT and the tank fired at a wall, which is why laneValue
-		// and drillValue were indistinguishable in this suite.
+		// and the drill's axis ranking were indistinguishable in this suite.
 		const brick = new GameObject('BRICK', 6, 5)
 		const snapshot = emptySnapshot([brick], [makeEnemy(44, 72)])
 		snapshot.ai.x = 41

@@ -17,7 +17,6 @@ describe('findPath', () => {
 		expect(path!.waypoints.every((waypoint) => waypoint.y === 40)).toBe(
 			true
 		)
-		expect(path!.brick).toBeNull()
 	})
 
 	it('detours around a wall when brick drilling is off', () => {
@@ -37,7 +36,11 @@ describe('findPath', () => {
 		const path = findPath(tank, 96, 40, wall, { allowBrick: true })
 
 		expect(path).not.toBeNull()
-		expect(path!.brick).toEqual({ x: 72, y: 40 })
+		expect(
+			path!.waypoints.some(
+				(waypoint) => waypoint.x === 72 && waypoint.y === 40
+			)
+		).toBe(true)
 	})
 
 	it('returns null when the target is sealed by stone', () => {
