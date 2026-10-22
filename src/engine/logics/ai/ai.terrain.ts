@@ -13,6 +13,9 @@ import { AiGoal, AiSnapshot, AiTierFeatures } from './ai.types'
 const FLAG_WALL_RADIUS = 24
 const DRILL_LANE_REACH = 152
 const LANE_STEP = 8
+// Aiming lanes here are one pixel tighter than the tactical firing band
+// (ai.tactics.ts HIT_BAND 8, FRIEND_HIT_BAND 8 below): a lane must be clearly
+// aligned to spend a drill, a shot only has to hit the engine's ±8 box.
 const HIT_BAND = 7
 
 const DIRECTIONS: TypeDirection[] = ['TOP', 'BOTTOM', 'LEFT', 'RIGHT']
@@ -179,8 +182,9 @@ export const drillValue = (
 }
 
 // One gate for both copies of "is the other player on this firing line". The
-// engine's bullet hit box is ±8 (isBulletHitTank), so ±7 leaves a friendly-fire
-// hole one pixel wide.
+// engine's bullet hit box is ±8 (isBulletHitTank), so ±8 here leaves no
+// friendly-fire hole; tactics' own HIT_BAND is also 8, while terrain's aiming
+// lanes use 7 because a drill is more expensive than a shot.
 const FRIEND_HIT_BAND = 8
 
 export const friendInLine = (
@@ -218,9 +222,9 @@ export const chooseDrill = (
 		)
 		const object = obstacleAt(snapshot, point.x, point.y)
 		if (!object?.destructible) continue
-		// A defender inside the base must never drill its own flag ring:
-		// opensLane rewards the brick when an enemy stands beyond it.
-		if (goal?.kind === 'defend' && nearFlag(object.x, object.y)) continue
+		// Never drill the flag ring: an open ring stays open, and opensLane
+		// rewards a ring brick whenever an enemy stands beyond it.
+		if (nearFlag(object.x, object.y)) continue
 
 		const value = drillValue(snapshot, { x: object.x, y: object.y }, goal)
 		if (value > bestValue) {

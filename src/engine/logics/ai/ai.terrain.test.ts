@@ -143,6 +143,22 @@ describe('chooseDrill', () => {
 		})
 	})
 
+	it('ranks an enemy behind a brick above a goal-aligned brick', () => {
+		// Up: the enemy stands on that lane (+3). Right: it only shortens the
+		// path to the goal (+2). Ranking, not direction order, decides.
+		const up = new GameObject('BRICK', 5, 6)
+		const right = new GameObject('BRICK', 6, 5)
+		const snapshot = emptySnapshot([up, right], [makeEnemy(40, 72)])
+
+		expect(
+			chooseDrill(
+				snapshot,
+				{ kind: 'patrol', x: 120, y: 40 },
+				AI_TIER_FEATURES.elite
+			)
+		).toEqual({ x: 40, y: 48, direction: 'TOP' })
+	})
+
 	it('returns null when the only brick in reach has the player in line', () => {
 		const up = new GameObject('BRICK', 5, 6)
 		const snapshot = emptySnapshot([up])
@@ -161,7 +177,7 @@ describe('chooseDrill', () => {
 		).toBeNull()
 	})
 
-	it('never drills its own flag wall while defending', () => {
+	it('never drills its own flag wall, for any goal kind', () => {
 		// AI beside the flag ring (brick at 96,24 is 7 px from the flag), an
 		// enemy on the far side of it: without the guard this is a +3 brick.
 		const brick = new GameObject('BRICK', 12, 3)
@@ -170,19 +186,14 @@ describe('chooseDrill', () => {
 		snapshot.ai.y = 24
 		snapshot.ai.direction = 'RIGHT'
 
-		expect(
-			chooseDrill(
-				snapshot,
-				{ kind: 'engage', x: 140, y: 24 },
-				AI_TIER_FEATURES.elite
-			)
-		).toEqual({ x: 96, y: 24, direction: 'RIGHT' })
-		expect(
-			chooseDrill(
-				snapshot,
-				{ kind: 'defend', x: 140, y: 24 },
-				AI_TIER_FEATURES.elite
-			)
-		).toBeNull()
+		for (const goal of [
+			{ kind: 'engage' as const, x: 140, y: 24 },
+			{ kind: 'collect' as const, x: 140, y: 24 },
+			{ kind: 'defend' as const, x: 140, y: 24 },
+			null,
+		])
+			expect(
+				chooseDrill(snapshot, goal, AI_TIER_FEATURES.elite)
+			).toBeNull()
 	})
 })
