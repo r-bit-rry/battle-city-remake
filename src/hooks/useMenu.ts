@@ -410,7 +410,16 @@ export const useMenu = () => {
 		return () => {
 			document.removeEventListener('keypress', chooseHandlerListener)
 		}
-	}, [state, choose, soundPack, isEditing, aiLevel, aiRole, gameSettings])
+	}, [
+		state,
+		choose,
+		soundPack,
+		isEditing,
+		aiLevel,
+		aiRole,
+		gameSettings,
+		searchingLobbyId,
+	])
 
 	return {
 		state: getMenuStates()[state],

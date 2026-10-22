@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GameProvider } from '@/components/game-provider'
+import { gameApi } from '@/api'
 import { Menu } from './menu'
 
 const ROW_HEIGHT = 40
@@ -237,5 +238,37 @@ describe('menu settings persistence', () => {
 		openSettings(press)
 
 		expect(document.body.textContent).toContain('SOUND (default)')
+	})
+})
+
+describe('find lobby', () => {
+	beforeEach(() => {
+		setDesktopViewport()
+		mockLayout()
+		localStorage.clear()
+	})
+	afterEach(() => {
+		cleanup()
+		vi.restoreAllMocks()
+		vi.unstubAllGlobals()
+	})
+
+	it('joins with the id entered on the find lobby screen', () => {
+		const join = vi.spyOn(gameApi, 'joinLobby').mockImplementation(() => {})
+		vi.stubGlobal('prompt', () => '4321')
+
+		const { press } = renderMenu()
+
+		for (let i = 0; i < 3; i++) press('KeyS')
+		press('Enter') // MULTIPLAYER
+		press('KeyS')
+		press('Enter') // FIND LOBBY
+		press('Enter') // ID row: prompt
+		expect(document.body.textContent).toContain('ID: 4321')
+
+		press('KeyS')
+		press('Enter') // FIND LOBBY row: join
+
+		expect(join).toHaveBeenCalledWith('4321', expect.any(Function))
 	})
 })
