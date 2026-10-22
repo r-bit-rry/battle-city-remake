@@ -1,6 +1,7 @@
 import { Game } from '../instances'
 import { aiSettings, makeAiGame } from '../logics/ai/ai.test-utils'
 import { PROGRESS_WINDOW, wedgedInWindow } from '../logics/ai/ai.perception'
+import { getAiMemory } from '../logics/ai.logic'
 import { gameFrame } from '../logics'
 import { GameSettings, TypeAiLevel, TypeAiRole } from '../types'
 import { isEnemy } from '../utils'
@@ -19,6 +20,8 @@ export interface SimMetrics {
 	aiAlive: boolean
 	/** Ticks where the AI tank made no net progress over the last window. */
 	stuckRatio: number
+	/** Fraction of ticks spent on a defend goal. */
+	defendShare: number
 	friendlyFire: number
 	p50Ms: number
 	p99Ms: number
@@ -54,6 +57,7 @@ export class Sim {
 	private ticks = 0
 	private kills = 0
 	private stuckTicks = 0
+	private defendTicks = 0
 	private positions: { x: number; y: number }[] = []
 	private friendlyFire = 0
 	private times: number[] = []
@@ -88,6 +92,7 @@ export class Sim {
 			baseAlive,
 			aiAlive: !!this.game.p2?.lives,
 			stuckRatio: this.ticks ? this.stuckTicks / this.ticks : 0,
+			defendShare: this.ticks ? this.defendTicks / this.ticks : 0,
 			friendlyFire: this.friendlyFire,
 			p50Ms: percentile(sorted, 0.5),
 			p99Ms: percentile(sorted, 0.99),
@@ -129,6 +134,7 @@ export class Sim {
 				this.kills++
 			}
 		}
+		if (getAiMemory(game)?.goal?.kind === 'defend') this.defendTicks++
 		this.positions.push({ x: p2.coordinateX, y: p2.coordinateY })
 		if (this.positions.length > PROGRESS_WINDOW) this.positions.shift()
 		// a limit cycle moves a pixel per tick and still goes nowhere

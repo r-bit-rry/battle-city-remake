@@ -3,6 +3,7 @@ import { isEnemy, isImpassibleGameObject, isPlayerDead } from '../../utils'
 import { TypeEnemyTank } from '../../types'
 import {
 	AiBonusSnapshot,
+	AiGoal,
 	AiBulletSnapshot,
 	AiEnemySnapshot,
 	AiMemory,
@@ -47,6 +48,39 @@ export const wedgedInWindow = (
 	)
 }
 
+/**
+ * Progress toward one goal. The window restarts whenever the goal changes, so
+ * a target that walks away is not mistaken for a stall, and a held position
+ * (defend) is not a journey. `reach` is the distance at which it counts as
+ * arrived. Updates `memory`'s stall window.
+ */
+export const goalStalled = (
+	memory: AiMemory,
+	goal: AiGoal | null,
+	x: number,
+	y: number,
+	reach: number
+) => {
+	const gap = goal ? Math.hypot(x - goal.x, y - goal.y) : 0
+	const key = goal
+		? `${goal.kind}:${goal.enemyId ?? ''}:${goal.bonusId ?? ''}:${goal.x},${goal.y}`
+		: null
+	if (key !== memory.stallKey) {
+		memory.stallKey = key
+		memory.stallGap = gap
+		memory.stallTicks = 0
+	}
+	memory.stallTicks++
+
+	return (
+		goal !== null &&
+		goal.kind !== 'defend' &&
+		memory.stallTicks >= PROGRESS_WINDOW &&
+		gap > reach &&
+		gap >= memory.stallGap
+	)
+}
+
 export const BLOCK_CELLS = 32
 export const BLOCK_FREE = 0
 export const BLOCK_BRICK = 1
@@ -69,6 +103,9 @@ export const createMemory = (): AiMemory => ({
 	noProgressTicks: 0,
 	baseAlertTicks: 0,
 	wedgedTicks: 0,
+	stallKey: null,
+	stallGap: 0,
+	stallTicks: 0,
 	playerTrack: [],
 	positionTrack: [],
 	lastTargetId: null,

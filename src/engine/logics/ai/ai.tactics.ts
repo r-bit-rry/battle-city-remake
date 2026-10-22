@@ -21,7 +21,10 @@ export const ALL_DIRECTIONS: TypeDirection[] = [
 	'RIGHT',
 ]
 
-const WAYPOINT_REACHED_DISTANCE = 8
+export const WAYPOINT_REACHED_DISTANCE = 8
+// Firing alignment: the engine's bullet box is ±8, so a target this close to
+// the lane is hittable. ai.terrain.ts HIT_BAND 7 is the stricter aiming-lane
+// test used to decide a drill; friendInLine uses FRIEND_HIT_BAND 8.
 const HIT_BAND = 8
 const SNIPE_RANGE = 140
 export const COMMIT_TICKS = 8

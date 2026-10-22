@@ -161,6 +161,12 @@ export interface AiMemory {
 	baseAlertTicks: number
 	/** Consecutive frames the progress window has been wedged. */
 	wedgedTicks: number
+	/** Identity of the goal the stall window belongs to. */
+	stallKey: string | null
+	/** Distance to that goal when the current stall window started. */
+	stallGap: number
+	/** Frames the current stall window has been open. */
+	stallTicks: number
 	playerTrack: { x: number; y: number }[]
 	/** AI positions over the progress window, oldest first. */
 	positionTrack: { x: number; y: number }[]

@@ -5,6 +5,7 @@ import { AI_ROLE_PROFILES, AI_TIER_FEATURES } from './ai/ai.profiles'
 import {
 	buildSnapshot,
 	createMemory,
+	goalStalled,
 	PROGRESS_WINDOW,
 	wedgedInWindow,
 } from './ai/ai.perception'
@@ -16,6 +17,8 @@ import {
 	canStep,
 	COMMIT_TICKS,
 	decideTactics,
+	stepPosition,
+	WAYPOINT_REACHED_DISTANCE,
 } from './ai/ai.tactics'
 import { AiMemory, AiSnapshot, DangerMap } from './ai/ai.types'
 
@@ -180,6 +183,19 @@ export const aiFrameLogic = (game: Game) => {
 	if (memory.positionTrack.length > PROGRESS_WINDOW)
 		memory.positionTrack.shift()
 
+	const goal = memory.goal
+	const stalled =
+		// A greedy tier has no path to discard, so this would only re-roll its
+		// aim jitter; the wedge it is meant to break is a waypoint problem.
+		features.pathfinding !== 'greedy' &&
+		goalStalled(
+			memory,
+			goal,
+			p2.coordinateX,
+			p2.coordinateY,
+			WAYPOINT_REACHED_DISTANCE
+		)
+
 	// A closed window with no net progress is a wedge even when the tank is
 	// moving, which the frame-to-frame counter above cannot see. Two windows
 	// straight before acting: one window of a tight patrol is not a wedge.
@@ -189,7 +205,42 @@ export const aiFrameLogic = (game: Game) => {
 	memory.wedgedTicks = cycle ? memory.wedgedTicks + 1 : 0
 	const wedged = memory.wedgedTicks >= PROGRESS_WINDOW
 
-	if (memory.noProgressTicks >= NO_PROGRESS_GOAL) {
+	if (stalled && cycle && goal) {
+		memory.positionTrack = []
+		memory.stallKey = null
+		memory.stallGap = 0
+		memory.stallTicks = 0
+		memory.goal = null
+		memory.cooldown = 0
+		memory.path = null
+		memory.pathSignature = null
+		memory.commitDir = null
+		memory.commitTicks = 0
+		memory.wedgedTicks = 0
+		// off the lane it has been circling on, losing the least ground: the
+		// "opposing sidestep" below can walk back down the same lane
+		const perpendicular: TypeDirection[] =
+			snapshot.ai.direction === 'TOP' ||
+			snapshot.ai.direction === 'BOTTOM'
+				? ['LEFT', 'RIGHT']
+				: ['TOP', 'BOTTOM']
+		const sidestep = perpendicular
+			.filter((direction) => canStep(snapshot.ai, direction, busy))
+			.sort((a, b) => {
+				const stepA = stepPosition(p2.coordinateX, p2.coordinateY, a)
+				const stepB = stepPosition(p2.coordinateX, p2.coordinateY, b)
+
+				return (
+					Math.hypot(stepA.x - goal.x, stepA.y - goal.y) -
+					Math.hypot(stepB.x - goal.x, stepB.y - goal.y)
+				)
+			})[0]
+		if (sidestep) {
+			controls.move = sidestep
+			memory.commitDir = sidestep
+			memory.commitTicks = COMMIT_TICKS
+		}
+	} else if (memory.noProgressTicks >= NO_PROGRESS_GOAL) {
 		memory.noProgressTicks = 0
 		memory.positionTrack = []
 		memory.goal = null

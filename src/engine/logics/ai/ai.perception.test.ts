@@ -4,6 +4,7 @@ import { GameObject } from '../../instances'
 import {
 	buildSnapshot,
 	createMemory,
+	goalStalled,
 	inferPlayerIntent,
 	wedgedInWindow,
 } from './ai.perception'
@@ -156,5 +157,83 @@ describe('wedgedInWindow', () => {
 			)
 		).toBe(false)
 		expect(wedgedInWindow([], 40, 100)).toBe(false)
+	})
+})
+
+describe('goalStalled', () => {
+	const frames = (
+		goal: Parameters<typeof goalStalled>[1],
+		step: (tick: number) => { x: number; y: number },
+		count = 60
+	) => {
+		const memory = createMemory()
+		let stalled = false
+		for (let tick = 0; tick < count; tick++) {
+			const { x, y } = step(tick)
+			stalled = goalStalled(memory, goal, x, y, 8)
+		}
+
+		return stalled
+	}
+
+	it('reports a goal the tank circles without closing', () => {
+		// the pro:guardian seed-1 limit cycle: x 127 <-> 143 at y 7, goal fixed
+		expect(
+			frames({ kind: 'patrol', x: 103, y: 31 }, (tick) => ({
+				x: 127 + (tick % 17),
+				y: 7,
+			}))
+		).toBe(true)
+	})
+
+	it('does not report a goal that is being reached', () => {
+		expect(
+			frames({ kind: 'patrol', x: 103, y: 31 }, (tick) => ({
+				x: 160 - tick,
+				y: 100,
+			}))
+		).toBe(false)
+	})
+
+	it('does not report a target that moves every tick', () => {
+		// an engage goal follows the enemy; the window restarts with it
+		const memory = createMemory()
+		let stalled = false
+		for (let tick = 0; tick < 60; tick++) {
+			stalled = goalStalled(
+				memory,
+				{ kind: 'engage', x: 60, y: 60 + tick, enemyId: 'e' },
+				160,
+				100,
+				8
+			)
+		}
+
+		expect(stalled).toBe(false)
+	})
+
+	it('does not report a held position or a goal already reached', () => {
+		expect(
+			frames({ kind: 'defend', x: 103, y: 31 }, () => ({
+				x: 160,
+				y: 100,
+			}))
+		).toBe(false)
+		expect(
+			frames({ kind: 'patrol', x: 160, y: 100 }, () => ({
+				x: 160,
+				y: 100,
+			}))
+		).toBe(false)
+	})
+
+	it('needs a full window before it reports', () => {
+		expect(
+			frames(
+				{ kind: 'patrol', x: 103, y: 31 },
+				() => ({ x: 160, y: 100 }),
+				59
+			)
+		).toBe(false)
 	})
 })
